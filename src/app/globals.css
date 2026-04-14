@@ -128,3 +128,16 @@
     @apply font-sans;
   }
 }
+
+/* ── Mapbox GL popup overrides (dark theme) ───────────────────── */
+
+.artist-popup .mapboxgl-popup-content {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.artist-popup .mapboxgl-popup-tip {
+  display: none;
+}
