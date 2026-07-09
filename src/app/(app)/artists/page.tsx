@@ -22,6 +22,7 @@ import {
   AvatarFallback,
 } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { OnboardingGuide } from "@/components/onboarding-guide"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types
@@ -139,8 +140,8 @@ function EmptyState() {
 
       <h2 className="text-lg font-medium text-foreground">No artists yet</h2>
       <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted-foreground">
-        Start by adding your favorite tattoo artists to track their locations and
-        guest spots.
+        Import your Instagram following list to automatically add the tattoo
+        artists you follow.
       </p>
 
       <Link href="/artists/import" className="mt-6">
@@ -158,6 +159,10 @@ function EmptyState() {
       >
         or add one manually
       </Link>
+
+      <div className="mt-8">
+        <OnboardingGuide />
+      </div>
     </div>
   )
 }

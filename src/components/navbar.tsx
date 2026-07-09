@@ -41,7 +41,16 @@ function getUserInitials(name?: string | null, email?: string | null): string {
 
 export function Navbar() {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+
+  // In dev auth bypass mode, NextAuth has no session — show a fallback dev user.
+  // The navbar only renders inside the (app) layout (authenticated routes),
+  // so an unauthenticated status here means we're bypassing auth.
+  const user =
+    session?.user ??
+    (status === "unauthenticated"
+      ? { name: "Dev User", email: "dev@travelink.app", image: null }
+      : null)
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
@@ -103,14 +112,14 @@ export function Navbar() {
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <Avatar size="default" className="cursor-pointer transition-opacity hover:opacity-80">
-              {session?.user?.image && (
+              {user?.image && (
                 <AvatarImage
-                  src={session.user.image}
-                  alt={session.user.name ?? "User avatar"}
+                  src={user.image}
+                  alt={user.name ?? "User avatar"}
                 />
               )}
               <AvatarFallback className="bg-amber-500/15 text-amber-500 text-xs font-semibold">
-                {getUserInitials(session?.user?.name, session?.user?.email)}
+                {getUserInitials(user?.name, user?.email)}
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
@@ -119,14 +128,14 @@ export function Navbar() {
             {/* User identity */}
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-0.5">
-                {session?.user?.name && (
+                {user?.name && (
                   <span className="text-sm font-medium text-foreground truncate">
-                    {session.user.name}
+                    {user.name}
                   </span>
                 )}
-                {session?.user?.email && (
+                {user?.email && (
                   <span className="text-xs text-muted-foreground truncate">
-                    {session.user.email}
+                    {user.email}
                   </span>
                 )}
               </div>
