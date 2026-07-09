@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: travelink-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: travelink
+      POSTGRES_DB: travelink
+    volumes:
+      - travelink-pgdata:/var/lib/postgresql/data
+
+volumes:
+  travelink-pgdata:
