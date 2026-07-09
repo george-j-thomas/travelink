@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   Search,
   Plus,
+  Upload,
   MapPin,
   Plane,
   UserRound,
@@ -142,14 +143,20 @@ function EmptyState() {
         guest spots.
       </p>
 
-      <Link href="/artists/add" className="mt-6">
+      <Link href="/artists/import" className="mt-6">
         <Button
           className="bg-amber-500 font-medium text-black hover:bg-amber-400"
           size="lg"
         >
-          <Plus className="size-4" />
-          Add Your First Artist
+          <Upload className="size-4" />
+          Import Your Artists
         </Button>
+      </Link>
+      <Link
+        href="/artists/add"
+        className="mt-3 text-sm text-muted-foreground hover:text-amber-500 transition-colors"
+      >
+        or add one manually
       </Link>
     </div>
   )
@@ -323,10 +330,18 @@ export default function ArtistsPage() {
             </div>
 
             <Link href="/artists/add" className="shrink-0">
-              <Button className="bg-amber-500 font-medium text-black hover:bg-amber-400">
+              <Button variant="outline" size="sm">
                 <Plus className="size-4" />
                 <span className="hidden sm:inline">Add Artist</span>
                 <span className="sm:hidden">Add</span>
+              </Button>
+            </Link>
+
+            <Link href="/artists/import" className="shrink-0">
+              <Button className="bg-amber-500 font-medium text-black hover:bg-amber-400">
+                <Upload className="size-4" />
+                <span className="hidden sm:inline">Import Artists</span>
+                <span className="sm:hidden">Import</span>
               </Button>
             </Link>
           </div>

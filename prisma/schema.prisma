@@ -20,6 +20,7 @@ model User {
   artists       UserArtist[]
   accounts      Account[]
   sessions      Session[]
+  importJobs    ImportJob[]
 
   @@map("users")
 }
@@ -102,4 +103,23 @@ model ArtistLocation {
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@map("artist_locations")
+}
+
+model ImportJob {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  status        String   @default("pending") // pending | processing | completed | failed | cancelled
+  source        String                       // upload | scrape
+  totalHandles  Int      @default(0) @map("total_handles")
+  completed     Int      @default(0)
+  failed        Int      @default(0)
+  skipped       Int      @default(0)
+  errors        String?  @db.Text            // JSON array of {handle, error}
+  handles       String?  @db.Text            // JSON array of all submitted handles
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("import_jobs")
 }
