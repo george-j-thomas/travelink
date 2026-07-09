@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { fetchArtistProfile, RateLimitError } from "@/lib/instagram"
+import { scrapeProfile } from "@/lib/instagram-scraper"
 import { parseBioLocations } from "@/lib/bio-parser"
 import { geocodeLocation } from "@/lib/geocoding"
 
@@ -42,7 +43,8 @@ function normalizeHandle(handle: string): string {
  */
 export async function addArtistByHandle(
   handle: string,
-  userId: string
+  userId: string,
+  sessionId?: string
 ): Promise<PipelineResult> {
   const warnings: string[] = []
   const normalized = normalizeHandle(handle)
@@ -95,8 +97,6 @@ export async function addArtistByHandle(
   // ------------------------------------------------------------------
   // Step 2 — Fetch Instagram profile
   // ------------------------------------------------------------------
-  const profile = await fetchArtistProfile(normalized)
-
   let artistData: {
     instagramHandle: string
     displayName: string | null
@@ -106,26 +106,68 @@ export async function addArtistByHandle(
     bioLastFetchedAt: Date | null
   }
 
-  if (!profile) {
-    warnings.push(
-      "Instagram profile not found. You can add locations manually."
-    )
-    artistData = {
-      instagramHandle: normalized,
-      displayName: null,
-      bio: null,
-      profilePicUrl: null,
-      accountType: "unknown",
-      bioLastFetchedAt: null,
+  if (sessionId) {
+    // Cookie-based scraping path (import flow)
+    // ScraperAuthError and ScraperRateLimitError propagate to caller
+    const scraped = await scrapeProfile(normalized, sessionId)
+
+    if (!scraped) {
+      warnings.push(
+        "Instagram profile not found. You can add locations manually."
+      )
+      artistData = {
+        instagramHandle: normalized,
+        displayName: null,
+        bio: null,
+        profilePicUrl: null,
+        accountType: "unknown",
+        bioLastFetchedAt: null,
+      }
+    } else {
+      artistData = {
+        instagramHandle: scraped.username,
+        displayName: scraped.fullName,
+        bio: scraped.biography,
+        profilePicUrl: scraped.profilePicUrl,
+        accountType: scraped.isBusiness ? "business" : "unknown",
+        bioLastFetchedAt: new Date(),
+      }
     }
   } else {
-    artistData = {
-      instagramHandle: profile.username,
-      displayName: profile.name,
-      bio: profile.biography,
-      profilePicUrl: profile.profilePictureUrl,
-      accountType: profile.accountType,
-      bioLastFetchedAt: new Date(),
+    // Fallback: Business Discovery API (manual single-add flow)
+    let profile = null
+    try {
+      profile = await fetchArtistProfile(normalized)
+    } catch (err) {
+      if (err instanceof RateLimitError) throw err
+      warnings.push(
+        "Could not fetch Instagram profile (API unavailable). You can add locations manually."
+      )
+    }
+
+    if (!profile) {
+      if (warnings.length === 0) {
+        warnings.push(
+          "Instagram profile not found. You can add locations manually."
+        )
+      }
+      artistData = {
+        instagramHandle: normalized,
+        displayName: null,
+        bio: null,
+        profilePicUrl: null,
+        accountType: "unknown",
+        bioLastFetchedAt: null,
+      }
+    } else {
+      artistData = {
+        instagramHandle: profile.username,
+        displayName: profile.name,
+        bio: profile.biography,
+        profilePicUrl: profile.profilePictureUrl,
+        accountType: profile.accountType,
+        bioLastFetchedAt: new Date(),
+      }
     }
   }
 

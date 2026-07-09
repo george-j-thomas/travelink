@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db"
 import { addArtistByHandle } from "@/lib/artist-pipeline"
 import { RateLimitError } from "@/lib/instagram"
+import { ScraperAuthError, ScraperRateLimitError } from "@/lib/instagram-scraper"
 
 export interface ImportJobState {
   status: "pending" | "processing" | "completed" | "failed" | "cancelled"
@@ -45,7 +46,8 @@ async function updateDb(
 export function startImportJob(
   jobId: string,
   handles: string[],
-  userId: string
+  userId: string,
+  sessionId?: string
 ): void {
   const state: InternalJobState = {
     status: "pending",
@@ -76,7 +78,7 @@ export function startImportJob(
         state.currentHandle = handle
 
         try {
-          const result = await addArtistByHandle(handle, userId)
+          const result = await addArtistByHandle(handle, userId, sessionId)
 
           if (result.status === "existing") {
             state.skipped++
@@ -85,18 +87,36 @@ export function startImportJob(
             state.completed++
           }
         } catch (err) {
-          if (err instanceof RateLimitError) {
+          if (err instanceof ScraperAuthError) {
+            // Cookie expired — fatal, stop the whole job
+            state.failed++
+            state.errors.push({
+              handle,
+              error: "Session cookie expired. Please restart the import with a fresh cookie.",
+            })
+            state.status = "failed"
+            break
+          } else if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
             // Wait 60s and retry once
             await sleep(60_000)
 
             try {
-              const retryResult = await addArtistByHandle(handle, userId)
+              const retryResult = await addArtistByHandle(handle, userId, sessionId)
               if (retryResult.status === "existing") {
                 state.skipped++
               } else {
                 state.completed++
               }
             } catch (retryErr) {
+              if (retryErr instanceof ScraperAuthError) {
+                state.failed++
+                state.errors.push({
+                  handle,
+                  error: "Session cookie expired. Please restart the import with a fresh cookie.",
+                })
+                state.status = "failed"
+                break
+              }
               state.failed++
               state.errors.push({
                 handle,
@@ -127,7 +147,9 @@ export function startImportJob(
       }
 
       // Final state
-      if (state.cancelled) {
+      if (state.status === "failed") {
+        // Already set by ScraperAuthError handler — keep it
+      } else if (state.cancelled) {
         state.status = "cancelled"
       } else {
         state.status = "completed"

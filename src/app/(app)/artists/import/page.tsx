@@ -403,7 +403,11 @@ export default function ImportArtistsPage() {
       const res = await fetch("/api/import/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handles: Array.from(selectedHandles) }),
+        body: JSON.stringify({
+          handles: Array.from(selectedHandles),
+          source: sessionCookie ? "scrape" : "upload",
+          sessionId: sessionCookie || undefined,
+        }),
       })
 
       if (res.status === 401) {

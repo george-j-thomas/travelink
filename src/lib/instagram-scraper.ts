@@ -138,6 +138,64 @@ async function fetchFollowingPage(
 }
 
 // ---------------------------------------------------------------------------
+// Profile scraping
+// ---------------------------------------------------------------------------
+
+export interface ScrapedProfile {
+  username: string
+  fullName: string | null
+  biography: string | null
+  profilePicUrl: string | null
+  isPrivate: boolean
+  isBusiness: boolean
+}
+
+/**
+ * Fetches a single user's profile (bio, name, profile pic) via the private API.
+ * Returns null if the user is not found.
+ */
+export async function scrapeProfile(
+  handle: string,
+  sessionId: string
+): Promise<ScrapedProfile | null> {
+  const cleaned = cleanSessionId(sessionId)
+  const headers = buildHeaders(cleaned)
+  const normalized = handle.replace(/^@/, "").trim().toLowerCase()
+
+  const url = `${BASE_URL}/users/web_profile_info/?username=${encodeURIComponent(normalized)}`
+  const res = await fetch(url, { headers })
+
+  if (res.status === 401 || res.status === 403) {
+    throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
+  }
+  if (res.status === 429) {
+    throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
+  }
+  if (res.status === 404) {
+    return null
+  }
+  if (!res.ok) {
+    throw new Error(`Instagram web_profile_info request failed with status ${res.status}`)
+  }
+
+  const data = await res.json()
+  const user = data?.data?.user
+
+  if (!user) {
+    return null
+  }
+
+  return {
+    username: user.username ?? normalized,
+    fullName: user.full_name ?? null,
+    biography: user.biography ?? null,
+    profilePicUrl: user.profile_pic_url_hd ?? user.profile_pic_url ?? null,
+    isPrivate: user.is_private ?? false,
+    isBusiness: user.is_business_account ?? false,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 

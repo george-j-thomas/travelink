@@ -25,9 +25,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { handles: rawHandles, source } = body as {
+  const { handles: rawHandles, source, sessionId } = body as {
     handles?: unknown
     source?: unknown
+    sessionId?: unknown
   }
 
   if (
@@ -85,7 +86,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Fire and forget
-    startImportJob(job.id, handles, userId)
+    const sid = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : undefined
+    startImportJob(job.id, handles, userId, sid)
 
     return NextResponse.json(
       {
