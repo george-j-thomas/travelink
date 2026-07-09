@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -25,6 +25,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasInstagram, setHasInstagram] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/providers")
+      .then((res) => res.json())
+      .then((providers) => {
+        if (providers?.instagram) setHasInstagram(true);
+      })
+      .catch(() => {});
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,26 +117,29 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            or
-          </span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
+        {/* Divider + Instagram OAuth — only when provider is available */}
+        {hasInstagram && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                or
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
 
-        {/* Instagram OAuth */}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2 border-border/60 hover:border-pink-500/40 hover:bg-pink-500/5"
-          onClick={() => signIn("instagram", { callbackUrl: "/artists" })}
-          disabled={isLoading}
-        >
-          <InstagramIcon className="h-4 w-4 text-pink-400" />
-          Continue with Instagram
-        </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-border/60 hover:border-pink-500/40 hover:bg-pink-500/5"
+              onClick={() => signIn("instagram", { callbackUrl: "/artists" })}
+              disabled={isLoading}
+            >
+              <InstagramIcon className="h-4 w-4 text-pink-400" />
+              Continue with Instagram
+            </Button>
+          </>
+        )}
       </CardContent>
 
       <CardFooter className="justify-center">

@@ -5,16 +5,19 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { compare } from "bcryptjs"
 import { prisma } from "@/lib/db"
 
-export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
+const providers: AuthOptions["providers"] = []
 
-  providers: [
+if (process.env.INSTAGRAM_CLIENT_ID && process.env.INSTAGRAM_CLIENT_SECRET) {
+  providers.push(
     InstagramProvider({
-      clientId: process.env.INSTAGRAM_CLIENT_ID!,
-      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET!,
-    }),
+      clientId: process.env.INSTAGRAM_CLIENT_ID,
+      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET,
+    })
+  )
+}
 
-    CredentialsProvider({
+providers.push(
+  CredentialsProvider({
       name: "Email",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -40,8 +43,13 @@ export const authOptions: AuthOptions = {
 
         return { id: user.id, email: user.email, name: user.name }
       },
-    }),
-  ],
+  })
+)
+
+export const authOptions: AuthOptions = {
+  adapter: PrismaAdapter(prisma),
+
+  providers,
 
   // JWT strategy is required when using credentials provider alongside OAuth
   session: { strategy: "jwt" },
