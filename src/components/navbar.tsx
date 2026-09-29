@@ -15,6 +15,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -125,21 +126,23 @@ export function Navbar() {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" sideOffset={8} className="w-56">
-            {/* User identity */}
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-0.5">
-                {user?.name && (
-                  <span className="text-sm font-medium text-foreground truncate">
-                    {user.name}
-                  </span>
-                )}
-                {user?.email && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user.email}
-                  </span>
-                )}
-              </div>
-            </DropdownMenuLabel>
+            {/* User identity — Base UI requires GroupLabel inside a Group */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-0.5">
+                  {user?.name && (
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {user.name}
+                    </span>
+                  )}
+                  {user?.email && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </span>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
 
