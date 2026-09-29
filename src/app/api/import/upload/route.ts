@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
   }
 
   const file = formData.get("file")
-  if (!file || !(file instanceof File)) {
+  // Blob, not File — the File global only exists on Node 20+
+  if (!file || typeof file === "string" || !(file instanceof Blob)) {
     return NextResponse.json(
       { error: "A file field is required" },
       { status: 400 }
