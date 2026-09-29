@@ -1,5 +1,6 @@
 "use client"
 
+import type * as GeoJSON from "geojson"
 import { ChevronLeft, ChevronRight, MapPin, Plane, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
