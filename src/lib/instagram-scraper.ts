@@ -97,6 +97,7 @@ function randomBetween(min: number, max: number): number {
 /**
  * Instagram signals throttling as a 401 "Please wait a few minutes" as well as
  * a 429, so the body must be inspected before treating a 401 as an auth failure.
+ * An invalid cookie gets the same message but with `require_login: true`.
  */
 async function throwForStatus(res: Response, context: string): Promise<void> {
   if (res.ok) return
@@ -107,6 +108,9 @@ async function throwForStatus(res: Response, context: string): Promise<void> {
 
   if (res.status === 401 || res.status === 403) {
     const body = await res.text().catch(() => "")
+    if (/"require_login"\s*:\s*true/.test(body)) {
+      throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
+    }
     if (/wait a few minutes|rate limit|too many requests/i.test(body)) {
       throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
     }

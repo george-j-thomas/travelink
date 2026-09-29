@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { startImportJob } from "@/lib/import-runner"
+import { failStaleJob, isStaleJob } from "@/lib/import-runner"
 
 const MAX_HANDLES = 2000
 const VALID_SOURCES = new Set(["upload", "scrape"])
 
-// POST /api/import/start — Start a bulk import job
+// POST /api/import/start — Create a bulk import job.
+// The client then drives it via POST /api/import/[id]/next.
 export async function POST(request: NextRequest) {
   let session
   try {
@@ -25,10 +26,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { handles: rawHandles, source, sessionId } = body as {
+  const { handles: rawHandles, source } = body as {
     handles?: unknown
     source?: unknown
-    sessionId?: unknown
   }
 
   if (
@@ -55,10 +55,13 @@ export async function POST(request: NextRequest) {
   try {
     // Check for existing in-progress job
     const existingJob = await prisma.importJob.findFirst({
-      where: { userId, status: "processing" },
+      where: { userId, status: { in: ["pending", "processing"] } },
     })
 
-    if (existingJob) {
+    // A job abandoned mid-import (tab closed) shouldn't block new imports
+    if (existingJob && isStaleJob(existingJob)) {
+      await failStaleJob(existingJob)
+    } else if (existingJob) {
       return NextResponse.json(
         { error: "An import is already in progress" },
         { status: 409 }
@@ -84,13 +87,6 @@ export async function POST(request: NextRequest) {
         handles: JSON.stringify(handles),
       },
     })
-
-    // Fire and forget
-    const sid = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : undefined
-    const scraper = sid
-      ? { sessionId: sid, userAgent: request.headers.get("user-agent") ?? undefined }
-      : undefined
-    startImportJob(job.id, handles, userId, scraper)
 
     return NextResponse.json(
       {

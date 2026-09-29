@@ -16,10 +16,10 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 - `src/lib/` — Service modules. Each is self-contained with its own types, error classes, and a single public API:
   - `artist-pipeline.ts` — Orchestrator: Instagram fetch → Claude bio parse → Mapbox geocode → DB write
   - `instagram.ts` — Business Discovery API client (server-side app token)
-  - `instagram-scraper.ts` — Cookie-based private API following list fetch
+  - `instagram-scraper.ts` — Cookie-based internal web API client (following list + profiles); sends the user's own browser User-Agent
   - `bio-parser.ts` — Claude tool_use for structured location extraction
   - `geocoding.ts` — Mapbox forward geocoding
-  - `import-runner.ts` — In-memory background job runner for bulk imports
+  - `import-runner.ts` — Step-based bulk import: the browser calls `POST /api/import/[id]/next` in a loop, waiting the returned `nextDelayMs`. No background work (serverless-safe); scrape pacing lives here
   - `import-parser.ts` — Instagram data export JSON parser
   - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers)
   - `db.ts` — Prisma client singleton
@@ -90,5 +90,6 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Do not hand-edit files in `src/components/ui/` — they are managed by shadcn
 - Do not import `authOptions` from `src/app/api/auth/[...nextauth]/route.ts` — use `@/lib/auth-options`
 - Do not use Prisma enums — use string fields with conventions documented in comments
-- Do not store Instagram session cookies in the database — in-memory only
+- Do not store Instagram session cookies in the database — the browser sends the cookie with each request; the server holds it only for that request
+- Do not add in-memory background jobs — the app is deployed on Vercel (serverless); long work must be client-driven or step-based
 - Do not wrap slow external API calls (Instagram, Claude, Mapbox) in Prisma transactions

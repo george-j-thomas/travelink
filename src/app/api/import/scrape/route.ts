@@ -6,6 +6,9 @@ import {
   ScraperRateLimitError,
 } from "@/lib/instagram-scraper"
 
+// Paginating a large following list with courtesy delays can take a while
+export const maxDuration = 300
+
 // POST /api/import/scrape — Fetch following list using Instagram session cookie
 export async function POST(request: NextRequest) {
   try {

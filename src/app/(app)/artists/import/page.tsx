@@ -41,7 +41,7 @@ type Step = "method" | "select" | "processing" | "complete"
 
 interface ImportJob {
   id: string
-  status: "processing" | "completed" | "cancelled"
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled"
   total: number
   completed: number
   failed: number
@@ -54,7 +54,22 @@ interface ImportJob {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const POLL_INTERVAL_MS = 2000
+// Consecutive network failures tolerated before the import loop gives up
+const MAX_NETWORK_FAILURES = 5
+const NETWORK_RETRY_MS = 10_000
+
+interface ImportRun {
+  cancelled: boolean
+  wake: (() => void) | null
+}
+
+interface NextResponse {
+  job: ImportJob
+  nextDelayMs: number | null
+  retry: boolean
+}
+
+type ImportPhase = "processing" | "waiting" | "backoff"
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -63,6 +78,21 @@ const POLL_INTERVAL_MS = 2000
 // Must match the pacing in src/lib/import-runner.ts
 const SECONDS_PER_ARTIST_SCRAPE = 25
 const SECONDS_PER_ARTIST_API = 2
+
+/** Sleeps for `ms`, returning early if the run is cancelled. */
+function sleepUnlessCancelled(ms: number, run: ImportRun): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      run.wake = null
+      resolve()
+    }, ms)
+    run.wake = () => {
+      clearTimeout(timer)
+      run.wake = null
+      resolve()
+    }
+  })
+}
 
 function estimateTime(count: number, secondsPerArtist: number): string {
   const totalSeconds = count * secondsPerArtist
@@ -133,7 +163,7 @@ function InstructionStep({
 export default function ImportArtistsPage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const runRef = useRef<ImportRun | null>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
   // -- Step state
@@ -155,6 +185,7 @@ export default function ImportArtistsPage() {
   // -- Processing state
   const [jobId, setJobId] = useState<string | null>(null)
   const [job, setJob] = useState<ImportJob | null>(null)
+  const [phase, setPhase] = useState<ImportPhase>("processing")
 
   // -- Complete state
   const [finalJob, setFinalJob] = useState<ImportJob | null>(null)
@@ -165,15 +196,25 @@ export default function ImportArtistsPage() {
   /* ---------------------------------------------------------------- */
 
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+    return () => stopRun()
   }, [])
 
-  function stopPolling() {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
+  // The import is driven by this tab — warn before closing it mid-import
+  useEffect(() => {
+    if (step !== "processing") return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [step])
+
+  function stopRun() {
+    const run = runRef.current
+    if (run) {
+      run.cancelled = true
+      run.wake?.()
+      runRef.current = null
     }
   }
 
@@ -182,7 +223,7 @@ export default function ImportArtistsPage() {
   /* ---------------------------------------------------------------- */
 
   function resetAll() {
-    stopPolling()
+    stopRun()
     setStep("method")
     setSessionCookie("")
     setIsUploading(false)
@@ -413,7 +454,6 @@ export default function ImportArtistsPage() {
         body: JSON.stringify({
           handles: Array.from(selectedHandles),
           source: sessionCookie ? "scrape" : "upload",
-          sessionId: sessionCookie || undefined,
         }),
       })
 
@@ -445,35 +485,75 @@ export default function ImportArtistsPage() {
         currentHandle: null,
         errors: [],
       })
+      setPhase("processing")
       setStep("processing")
 
-      // Start polling
-      pollRef.current = setInterval(() => pollJob(id), POLL_INTERVAL_MS)
+      void runImport(id, sessionCookie)
     } catch {
       setError("Network error — check your connection and try again")
     }
   }
 
   /* ---------------------------------------------------------------- */
-  /*  Poll job status                                                   */
+  /*  Drive the import: one artist per request, paced by the server     */
   /* ---------------------------------------------------------------- */
 
-  async function pollJob(id: string) {
-    try {
-      const res = await fetch(`/api/import/${id}`)
-      if (!res.ok) return
+  async function runImport(id: string, cookie: string) {
+    stopRun()
+    const run: ImportRun = { cancelled: false, wake: null }
+    runRef.current = run
 
-      const data = (await res.json()) as ImportJob
+    let retry = false
+    let networkFailures = 0
 
-      setJob(data)
+    while (!run.cancelled) {
+      setPhase(retry ? "backoff" : "processing")
 
-      if (data.status === "completed" || data.status === "cancelled") {
-        stopPolling()
-        setFinalJob(data)
-        setStep("complete")
+      let res: Response
+      try {
+        res = await fetch(`/api/import/${id}/next`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: cookie || undefined, retry }),
+        })
+      } catch {
+        networkFailures++
+        if (networkFailures >= MAX_NETWORK_FAILURES) {
+          setError("Lost connection to the server — the import is paused. Resume to continue.")
+          return
+        }
+        await sleepUnlessCancelled(NETWORK_RETRY_MS, run)
+        continue
       }
-    } catch {
-      // Silently retry on next poll
+      if (run.cancelled) return
+
+      if (res.status === 401) {
+        router.push("/login")
+        return
+      }
+
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) {
+        setError(data?.error || "Import paused after a server error. Resume to continue.")
+        return
+      }
+
+      networkFailures = 0
+      const { job: latest, nextDelayMs, retry: shouldRetry } = data as NextResponse
+      setJob(latest)
+
+      if (nextDelayMs === null) {
+        runRef.current = null
+        setFinalJob(latest)
+        setStep("complete")
+        return
+      }
+
+      retry = shouldRetry
+      if (nextDelayMs > 0) {
+        setPhase(shouldRetry ? "backoff" : "waiting")
+        await sleepUnlessCancelled(nextDelayMs, run)
+      }
     }
   }
 
@@ -483,13 +563,16 @@ export default function ImportArtistsPage() {
 
   async function cancelImport() {
     if (!jobId) return
+    stopRun()
 
     try {
-      await fetch(`/api/import/${jobId}`, { method: "DELETE" })
-      // Polling will pick up the cancelled status
+      const res = await fetch(`/api/import/${jobId}`, { method: "DELETE" })
+      const data = res.ok ? ((await res.json()) as ImportJob) : null
+      setFinalJob(data ?? (job ? { ...job, status: "cancelled" } : null))
     } catch {
-      // Will be retried via polling
+      setFinalJob(job ? { ...job, status: "cancelled" } : null)
     }
+    setStep("complete")
   }
 
   /* ---------------------------------------------------------------- */
@@ -839,8 +922,8 @@ export default function ImportArtistsPage() {
                 job.total,
                 sessionCookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API
               )}
-              {sessionCookie &&
-                " (paced slowly to protect your Instagram account — you can leave this page open)"}
+              {sessionCookie && " — paced slowly to protect your Instagram account"}.
+              Keep this tab open until it finishes.
             </CardDescription>
           </CardHeader>
 
@@ -878,17 +961,30 @@ export default function ImportArtistsPage() {
               </div>
             </div>
 
-            {/* Current handle */}
-            {job.currentHandle && (
-              <div className="flex items-center gap-2.5 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                <span className="text-muted-foreground">
-                  Processing{" "}
-                  <span className="font-medium text-foreground">
-                    @{job.currentHandle}
-                  </span>
-                  …
-                </span>
+            {/* Current activity */}
+            <div className="flex items-center gap-2.5 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+              <span className="text-muted-foreground">
+                {phase === "backoff"
+                  ? "Instagram asked us to slow down — retrying in a few minutes…"
+                  : phase === "waiting"
+                    ? "Waiting before the next artist…"
+                    : "Processing next artist…"}
+                {job.currentHandle && phase !== "backoff" && (
+                  <>
+                    {" "}Last:{" "}
+                    <span className="font-medium text-foreground">
+                      @{job.currentHandle}
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -920,7 +1016,19 @@ export default function ImportArtistsPage() {
             </div>
           </CardContent>
 
-          <CardFooter>
+          <CardFooter className="gap-2">
+            {error && jobId && (
+              <Button
+                onClick={() => {
+                  setError(null)
+                  void runImport(jobId, sessionCookie)
+                }}
+                className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+                Resume
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={cancelImport}
@@ -952,7 +1060,9 @@ export default function ImportArtistsPage() {
               <CardTitle className="text-xl font-semibold tracking-tight">
                 {finalJob.status === "completed"
                   ? "Import Complete"
-                  : "Import Cancelled"}
+                  : finalJob.status === "failed"
+                    ? "Import Stopped"
+                    : "Import Cancelled"}
               </CardTitle>
             </div>
           </CardHeader>

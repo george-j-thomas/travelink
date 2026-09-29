@@ -1,3 +1,11 @@
+// Bulk import runner.
+//
+// Imports are driven by the browser: the client calls processNextHandle() via
+// POST /api/import/[id]/next, waits `nextDelayMs`, and repeats. Nothing runs in
+// the background, so this works on serverless hosts (Vercel) and the Instagram
+// session cookie is only ever held for the duration of a single request.
+
+import type { ImportJob } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { addArtistByHandle } from "@/lib/artist-pipeline"
 import { RateLimitError } from "@/lib/instagram"
@@ -7,8 +15,15 @@ import {
   type ScraperCredentials,
 } from "@/lib/instagram-scraper"
 
+// ---------------------------------------------------------------------------
+// Types & errors
+// ---------------------------------------------------------------------------
+
+export type ImportJobStatus = "pending" | "processing" | "completed" | "failed" | "cancelled"
+
 export interface ImportJobState {
-  status: "pending" | "processing" | "completed" | "failed" | "cancelled"
+  id: string
+  status: ImportJobStatus
   total: number
   completed: number
   failed: number
@@ -17,22 +32,24 @@ export interface ImportJobState {
   currentHandle: string | null
 }
 
-type InternalJobState = ImportJobState & { cancelled: boolean }
-
-const jobs = new Map<string, InternalJobState>()
-
-// Auto-remove job from memory after 30 minutes
-function scheduleCleanup(jobId: string): void {
-  setTimeout(() => jobs.delete(jobId), 30 * 60 * 1000)
+export interface ProcessNextResult {
+  job: ImportJobState
+  /** How long the client should wait before calling again; null once the job has ended. */
+  nextDelayMs: number | null
+  /** True when the handle hit a rate limit and should be retried once after the delay. */
+  retry: boolean
 }
 
-async function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
+export class ImportJobNotFoundError extends Error {
+  constructor() {
+    super("Import job not found")
+    this.name = "ImportJobNotFoundError"
+  }
 }
 
-function randomBetween(min: number, max: number): number {
-  return min + Math.floor(Math.random() * (max - min))
-}
+// ---------------------------------------------------------------------------
+// Pacing
+// ---------------------------------------------------------------------------
 
 // Cookie scraping runs as the user's own Instagram account, so it is paced with
 // jitter at ~120-180 profiles/hour — well under where Instagram starts throttling.
@@ -42,177 +59,189 @@ const SCRAPE_RATE_LIMIT_BACKOFF_MS = 5 * 60_000
 const API_DELAY_MS = 1500
 const API_RATE_LIMIT_BACKOFF_MS = 60_000
 
-async function updateDb(
-  jobId: string,
-  state: InternalJobState,
-  isFinal: boolean
-): Promise<void> {
-  await prisma.importJob.update({
-    where: { id: jobId },
-    data: {
-      status: isFinal ? state.status : "processing",
-      completed: state.completed,
-      failed: state.failed,
-      skipped: state.skipped,
-      errors: JSON.stringify(state.errors),
-    },
+/** An active job with no progress for this long is treated as abandoned. */
+export const STALE_JOB_THRESHOLD_MS = 10 * 60_000
+
+const COOKIE_EXPIRED_ERROR =
+  "Session cookie expired. Please restart the import with a fresh cookie."
+const STILL_RATE_LIMITED_ERROR =
+  "Instagram is still rate limiting after backing off — stopped to protect your account. Try again in a few hours."
+const ACTIVE_STATUSES = ["pending", "processing"]
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min))
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function parseJsonArray<T>(raw: string | null): T[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function toState(job: ImportJob, currentHandle: string | null = null): ImportJobState {
+  return {
+    id: job.id,
+    status: job.status as ImportJobStatus,
+    total: job.totalHandles,
+    completed: job.completed,
+    failed: job.failed,
+    skipped: job.skipped,
+    errors: parseJsonArray(job.errors),
+    currentHandle,
+  }
+}
+
+function isActive(job: ImportJob): boolean {
+  return ACTIVE_STATUSES.includes(job.status)
+}
+
+export function isStaleJob(job: ImportJob): boolean {
+  return isActive(job) && Date.now() - job.updatedAt.getTime() > STALE_JOB_THRESHOLD_MS
+}
+
+async function findOwnedJob(jobId: string, userId: string): Promise<ImportJob> {
+  const job = await prisma.importJob.findUnique({ where: { id: jobId } })
+  if (!job || job.userId !== userId) throw new ImportJobNotFoundError()
+  return job
+}
+
+/** Marks an abandoned job (browser closed mid-import) as failed. */
+export async function failStaleJob(job: ImportJob): Promise<ImportJob> {
+  const errors = parseJsonArray<{ handle: string; error: string }>(job.errors)
+  errors.push({ handle: "unknown", error: "Import was interrupted. Please try again." })
+  return prisma.importJob.update({
+    where: { id: job.id },
+    data: { status: "failed", errors: JSON.stringify(errors) },
   })
 }
 
-export function startImportJob(
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export async function getImportJob(jobId: string, userId: string): Promise<ImportJobState> {
+  let job = await findOwnedJob(jobId, userId)
+  if (isStaleJob(job)) job = await failStaleJob(job)
+  return toState(job)
+}
+
+export async function cancelImportJob(jobId: string, userId: string): Promise<ImportJobState> {
+  await findOwnedJob(jobId, userId)
+  await prisma.importJob.updateMany({
+    where: { id: jobId, status: { in: ACTIVE_STATUSES } },
+    data: { status: "cancelled" },
+  })
+  return toState(await findOwnedJob(jobId, userId))
+}
+
+/**
+ * Processes the next unprocessed handle of an import job and records the outcome.
+ *
+ * @param isRetry - true when retrying a handle that previously hit a rate limit
+ */
+export async function processNextHandle(
   jobId: string,
-  handles: string[],
   userId: string,
-  scraper?: ScraperCredentials
-): void {
-  const state: InternalJobState = {
-    status: "pending",
-    total: handles.length,
-    completed: 0,
-    failed: 0,
-    skipped: 0,
-    errors: [],
-    currentHandle: null,
-    cancelled: false,
+  scraper: ScraperCredentials | undefined,
+  isRetry: boolean
+): Promise<ProcessNextResult> {
+  const job = await findOwnedJob(jobId, userId)
+
+  if (!isActive(job)) {
+    return { job: toState(job), nextDelayMs: null, retry: false }
   }
 
-  jobs.set(jobId, state)
+  const handles = parseJsonArray<string>(job.handles)
+  const index = job.completed + job.failed + job.skipped
 
-  // Fire-and-forget — do NOT await
-  ;(async () => {
-    try {
-      state.status = "processing"
-      await prisma.importJob.update({
-        where: { id: jobId },
-        data: { status: "processing" },
-      })
+  if (index >= handles.length) {
+    const done = await prisma.importJob.update({
+      where: { id: jobId },
+      data: { status: "completed" },
+    })
+    return { job: toState(done), nextDelayMs: null, retry: false }
+  }
 
-      for (let i = 0; i < handles.length; i++) {
-        if (state.cancelled) break
+  const handle = handles[index]
+  const errors = parseJsonArray<{ handle: string; error: string }>(job.errors)
+  let outcome: "completed" | "skipped" | "failed"
+  let hitInstagram = true
+  let fatal = false
 
-        const handle = handles[i]
-        state.currentHandle = handle
-
-        // Existing artists are served from the DB — no Instagram request, no delay
-        let hitInstagram = true
-
-        try {
-          const result = await addArtistByHandle(handle, userId, scraper)
-
-          if (result.status === "existing") {
-            hitInstagram = false
-            state.skipped++
-          } else {
-            // "created" or "updated" both count as completed
-            state.completed++
-          }
-        } catch (err) {
-          if (err instanceof ScraperAuthError) {
-            // Cookie expired — fatal, stop the whole job
-            state.failed++
-            state.errors.push({
-              handle,
-              error: "Session cookie expired. Please restart the import with a fresh cookie.",
-            })
-            state.status = "failed"
-            break
-          } else if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
-            // Back off and retry once
-            await sleep(scraper ? SCRAPE_RATE_LIMIT_BACKOFF_MS : API_RATE_LIMIT_BACKOFF_MS)
-            if (state.cancelled) break
-
-            try {
-              const retryResult = await addArtistByHandle(handle, userId, scraper)
-              if (retryResult.status === "existing") {
-                state.skipped++
-              } else {
-                state.completed++
-              }
-            } catch (retryErr) {
-              if (retryErr instanceof ScraperAuthError) {
-                state.failed++
-                state.errors.push({
-                  handle,
-                  error: "Session cookie expired. Please restart the import with a fresh cookie.",
-                })
-                state.status = "failed"
-                break
-              }
-              state.failed++
-              state.errors.push({
-                handle,
-                error:
-                  retryErr instanceof Error
-                    ? retryErr.message
-                    : String(retryErr),
-              })
-            }
-          } else {
-            state.failed++
-            state.errors.push({
-              handle,
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
-        }
-
-        // Batch DB update every 10 handles
-        if ((i + 1) % 10 === 0) {
-          await updateDb(jobId, state, false)
-        }
-
-        if (hitInstagram && i < handles.length - 1 && !state.cancelled) {
-          await sleep(
-            scraper
-              ? randomBetween(SCRAPE_DELAY_MIN_MS, SCRAPE_DELAY_MAX_MS)
-              : API_DELAY_MS
-          )
-        }
-      }
-
-      // Final state
-      if (state.status === "failed") {
-        // Already set by ScraperAuthError handler — keep it
-      } else if (state.cancelled) {
-        state.status = "cancelled"
-      } else {
-        state.status = "completed"
-      }
-    } catch (err) {
-      state.status = "failed"
-      state.errors.push({
-        handle: state.currentHandle ?? "unknown",
-        error: `Unrecoverable: ${err instanceof Error ? err.message : String(err)}`,
-      })
-    } finally {
-      state.currentHandle = null
-      await updateDb(jobId, state, true).catch((dbErr) => {
-        console.error(`[import-runner] Failed to write final DB state for job ${jobId}:`, dbErr)
-      })
-      scheduleCleanup(jobId)
+  try {
+    const result = await addArtistByHandle(handle, userId, scraper)
+    if (result.status === "existing") {
+      // Served from the DB — no Instagram request, so no need to wait
+      outcome = "skipped"
+      hitInstagram = false
+    } else {
+      outcome = "completed"
     }
-  })()
-}
-
-export function getJobProgress(jobId: string): ImportJobState | null {
-  const state = jobs.get(jobId)
-  if (!state) return null
-
-  // Return a snapshot without the internal `cancelled` flag
-  return {
-    status: state.status,
-    total: state.total,
-    completed: state.completed,
-    failed: state.failed,
-    skipped: state.skipped,
-    errors: state.errors,
-    currentHandle: state.currentHandle,
+  } catch (err) {
+    outcome = "failed"
+    if (err instanceof ScraperAuthError) {
+      fatal = true
+      errors.push({ handle, error: COOKIE_EXPIRED_ERROR })
+    } else if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
+      if (!isRetry) {
+        // Don't advance — back off and retry this handle once
+        const touched = await prisma.importJob.update({
+          where: { id: jobId },
+          data: { status: "processing" },
+        })
+        return {
+          job: toState(touched, handle),
+          nextDelayMs: scraper ? SCRAPE_RATE_LIMIT_BACKOFF_MS : API_RATE_LIMIT_BACKOFF_MS,
+          retry: true,
+        }
+      }
+      // Still limited after backing off — pushing on is what gets accounts flagged
+      fatal = true
+      errors.push({ handle, error: STILL_RATE_LIMITED_ERROR })
+    } else {
+      errors.push({ handle, error: err instanceof Error ? err.message : String(err) })
+    }
   }
-}
 
-export function cancelJob(jobId: string): void {
-  const state = jobs.get(jobId)
-  if (state) {
-    state.cancelled = true
+  const finished = fatal || index + 1 >= handles.length
+
+  // Counter match = optimistic lock, so a duplicate tab can't double-count a handle.
+  // Status match means a cancel issued mid-request wins.
+  await prisma.importJob.updateMany({
+    where: {
+      id: jobId,
+      status: { in: ACTIVE_STATUSES },
+      completed: job.completed,
+      failed: job.failed,
+      skipped: job.skipped,
+    },
+    data: {
+      status: fatal ? "failed" : finished ? "completed" : "processing",
+      completed: job.completed + (outcome === "completed" ? 1 : 0),
+      skipped: job.skipped + (outcome === "skipped" ? 1 : 0),
+      failed: job.failed + (outcome === "failed" ? 1 : 0),
+      errors: JSON.stringify(errors),
+    },
+  })
+
+  const latest = await findOwnedJob(jobId, userId)
+  if (!isActive(latest)) {
+    return { job: toState(latest), nextDelayMs: null, retry: false }
   }
+
+  const nextDelayMs = !hitInstagram
+    ? 0
+    : scraper
+      ? randomBetween(SCRAPE_DELAY_MIN_MS, SCRAPE_DELAY_MAX_MS)
+      : API_DELAY_MS
+
+  return { job: toState(latest, handle), nextDelayMs, retry: false }
 }
