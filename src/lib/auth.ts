@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth-options"
+import { DEV_AUTH_BYPASS } from "@/lib/dev-auth"
 
 const DEV_SESSION = {
   user: { id: "dev-user", email: "dev@travelink.app", name: "Dev User" },
@@ -22,7 +23,7 @@ async function ensureDevUser() {
 
 /** Get the current session, or null if not authenticated. */
 export async function getSession() {
-  if (process.env.DEV_AUTH_BYPASS === "true") {
+  if (DEV_AUTH_BYPASS) {
     await ensureDevUser()
     return DEV_SESSION
   }
@@ -31,7 +32,7 @@ export async function getSession() {
 
 /** Get the current session, or throw if not authenticated. Use in protected API routes. */
 export async function requireSession() {
-  if (process.env.DEV_AUTH_BYPASS === "true") {
+  if (DEV_AUTH_BYPASS) {
     await ensureDevUser()
     return DEV_SESSION
   }
