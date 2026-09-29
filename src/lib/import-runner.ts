@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db"
 import { addArtistByHandle } from "@/lib/artist-pipeline"
 import { RateLimitError } from "@/lib/instagram"
-import { ScraperAuthError, ScraperRateLimitError } from "@/lib/instagram-scraper"
+import {
+  ScraperAuthError,
+  ScraperRateLimitError,
+  type ScraperCredentials,
+} from "@/lib/instagram-scraper"
 
 export interface ImportJobState {
   status: "pending" | "processing" | "completed" | "failed" | "cancelled"
@@ -26,6 +30,18 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+function randomBetween(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min))
+}
+
+// Cookie scraping runs as the user's own Instagram account, so it is paced with
+// jitter at ~120-180 profiles/hour — well under where Instagram starts throttling.
+const SCRAPE_DELAY_MIN_MS = 20_000
+const SCRAPE_DELAY_MAX_MS = 30_000
+const SCRAPE_RATE_LIMIT_BACKOFF_MS = 5 * 60_000
+const API_DELAY_MS = 1500
+const API_RATE_LIMIT_BACKOFF_MS = 60_000
+
 async function updateDb(
   jobId: string,
   state: InternalJobState,
@@ -47,7 +63,7 @@ export function startImportJob(
   jobId: string,
   handles: string[],
   userId: string,
-  sessionId?: string
+  scraper?: ScraperCredentials
 ): void {
   const state: InternalJobState = {
     status: "pending",
@@ -77,10 +93,14 @@ export function startImportJob(
         const handle = handles[i]
         state.currentHandle = handle
 
+        // Existing artists are served from the DB — no Instagram request, no delay
+        let hitInstagram = true
+
         try {
-          const result = await addArtistByHandle(handle, userId, sessionId)
+          const result = await addArtistByHandle(handle, userId, scraper)
 
           if (result.status === "existing") {
+            hitInstagram = false
             state.skipped++
           } else {
             // "created" or "updated" both count as completed
@@ -97,11 +117,12 @@ export function startImportJob(
             state.status = "failed"
             break
           } else if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
-            // Wait 60s and retry once
-            await sleep(60_000)
+            // Back off and retry once
+            await sleep(scraper ? SCRAPE_RATE_LIMIT_BACKOFF_MS : API_RATE_LIMIT_BACKOFF_MS)
+            if (state.cancelled) break
 
             try {
-              const retryResult = await addArtistByHandle(handle, userId, sessionId)
+              const retryResult = await addArtistByHandle(handle, userId, scraper)
               if (retryResult.status === "existing") {
                 state.skipped++
               } else {
@@ -140,9 +161,12 @@ export function startImportJob(
           await updateDb(jobId, state, false)
         }
 
-        // 1.5s spacing between handles to stay under Instagram rate limits
-        if (i < handles.length - 1 && !state.cancelled) {
-          await sleep(1500)
+        if (hitInstagram && i < handles.length - 1 && !state.cancelled) {
+          await sleep(
+            scraper
+              ? randomBetween(SCRAPE_DELAY_MIN_MS, SCRAPE_DELAY_MAX_MS)
+              : API_DELAY_MS
+          )
         }
       }
 

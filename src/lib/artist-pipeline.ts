@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { fetchArtistProfile, RateLimitError } from "@/lib/instagram"
-import { scrapeProfile } from "@/lib/instagram-scraper"
+import { scrapeProfile, type ScraperCredentials } from "@/lib/instagram-scraper"
 import { parseBioLocations } from "@/lib/bio-parser"
 import { geocodeLocation } from "@/lib/geocoding"
 
@@ -44,7 +44,7 @@ function normalizeHandle(handle: string): string {
 export async function addArtistByHandle(
   handle: string,
   userId: string,
-  sessionId?: string
+  scraper?: ScraperCredentials
 ): Promise<PipelineResult> {
   const warnings: string[] = []
   const normalized = normalizeHandle(handle)
@@ -106,10 +106,10 @@ export async function addArtistByHandle(
     bioLastFetchedAt: Date | null
   }
 
-  if (sessionId) {
+  if (scraper) {
     // Cookie-based scraping path (import flow)
     // ScraperAuthError and ScraperRateLimitError propagate to caller
-    const scraped = await scrapeProfile(normalized, sessionId)
+    const scraped = await scrapeProfile(normalized, scraper)
 
     if (!scraped) {
       warnings.push(

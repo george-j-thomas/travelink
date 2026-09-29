@@ -87,7 +87,10 @@ export async function POST(request: NextRequest) {
 
     // Fire and forget
     const sid = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : undefined
-    startImportJob(job.id, handles, userId, sid)
+    const scraper = sid
+      ? { sessionId: sid, userAgent: request.headers.get("user-agent") ?? undefined }
+      : undefined
+    startImportJob(job.id, handles, userId, scraper)
 
     return NextResponse.json(
       {

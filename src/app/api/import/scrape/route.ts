@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const handles = await scrapeFollowing(sessionId)
+    const handles = await scrapeFollowing({
+      sessionId,
+      userAgent: request.headers.get("user-agent") ?? undefined,
+    })
     return NextResponse.json({ handles, count: handles.length })
   } catch (err) {
     if (err instanceof ScraperAuthError) {

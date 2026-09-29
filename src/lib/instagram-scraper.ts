@@ -1,5 +1,6 @@
 // Instagram Following Scraper
-// Fetches a user's following list via Instagram's private mobile API.
+// Fetches a user's following list and artist profiles via Instagram's internal web API
+// (the same endpoints instagram.com uses).
 // Requires a `sessionid` cookie copied from the user's browser.
 //
 // SECURITY: The session ID is never logged or persisted — held in memory only.
@@ -23,12 +24,33 @@ export class ScraperRateLimitError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// Credentials
+// ---------------------------------------------------------------------------
+
+export interface ScraperCredentials {
+  /** The `sessionid` cookie value from the user's browser */
+  sessionId: string
+  /**
+   * User-Agent of the browser the cookie was copied from. Requests should look
+   * like they come from the same browser session that owns the cookie.
+   */
+  userAgent?: string
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const BASE_URL = "https://i.instagram.com/api/v1"
+// Same host + app ID the instagram.com web client uses, so requests are
+// consistent with a browser-issued `sessionid` cookie.
+const BASE_URL = "https://www.instagram.com/api/v1"
+const WEB_APP_ID = "936619743392459"
+const FALLBACK_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+
 const PAGE_SIZE = 200
-const PAGINATION_DELAY_MS = 500
+const PAGINATION_DELAY_MIN_MS = 1500
+const PAGINATION_DELAY_MAX_MS = 3500
 const MAX_HANDLES = 5000
 
 const AUTH_ERROR_MESSAGE =
@@ -40,12 +62,15 @@ const RATE_LIMIT_MESSAGE =
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildHeaders(cleanSessionId: string): Record<string, string> {
+function buildHeaders(cleanSessionId: string, userAgent?: string): Record<string, string> {
   return {
-    "User-Agent":
-      "Instagram 76.0.0.15.395 Android (24/7.0; 640dpi; 1440x2560; samsung; SM-G930F; herolte; samsungexynos8890; en_US; 138226743)",
+    "User-Agent": userAgent?.trim() || FALLBACK_USER_AGENT,
+    Accept: "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    Referer: "https://www.instagram.com/",
     Cookie: `sessionid=${cleanSessionId}`,
-    "X-IG-App-ID": "936619743392459",
+    "X-IG-App-ID": WEB_APP_ID,
+    "X-Requested-With": "XMLHttpRequest",
   }
 }
 
@@ -65,21 +90,52 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function randomBetween(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min))
+}
+
+/**
+ * Instagram signals throttling as a 401 "Please wait a few minutes" as well as
+ * a 429, so the body must be inspected before treating a 401 as an auth failure.
+ */
+async function throwForStatus(res: Response, context: string): Promise<void> {
+  if (res.ok) return
+
+  if (res.status === 429) {
+    throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text().catch(() => "")
+    if (/wait a few minutes|rate limit|too many requests/i.test(body)) {
+      throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
+    }
+    throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
+  }
+
+  throw new Error(`Instagram ${context} request failed with status ${res.status}`)
+}
+
 // ---------------------------------------------------------------------------
 // Internal API calls
 // ---------------------------------------------------------------------------
 
+/** The sessionid cookie is `<user_id>:<token>:...` (URL-encoded). */
+function userIdFromSessionId(cleanSessionId: string): string | null {
+  let decoded = cleanSessionId
+  try {
+    decoded = decodeURIComponent(cleanSessionId)
+  } catch {
+    // Not URL-encoded — use as-is
+  }
+  const prefix = decoded.split(":")[0]
+  return /^\d+$/.test(prefix) ? prefix : null
+}
+
 async function fetchUserId(headers: Record<string, string>): Promise<string> {
   const url = `${BASE_URL}/accounts/current_user/?edit=true`
   const res = await fetch(url, { headers })
-
-  if (res.status === 401 || res.status === 403) {
-    throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
-  }
-
-  if (!res.ok) {
-    throw new Error(`Instagram current_user request failed with status ${res.status}`)
-  }
+  await throwForStatus(res, "current_user")
 
   const data = await res.json()
   const userId = data?.user?.pk
@@ -108,16 +164,7 @@ async function fetchFollowingPage(
   }
 
   const res = await fetch(url, { headers })
-
-  if (res.status === 401 || res.status === 403) {
-    throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
-  }
-  if (res.status === 429) {
-    throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
-  }
-  if (!res.ok) {
-    throw new Error(`Instagram following request failed with status ${res.status}`)
-  }
+  await throwForStatus(res, "following")
 
   const data = await res.json()
 
@@ -132,7 +179,9 @@ async function fetchFollowingPage(
     .filter((name: unknown): name is string => typeof name === "string")
 
   const nextMaxId: string | null =
-    data.next_max_id && data.big_list ? String(data.next_max_id) : null
+    data.next_max_id !== undefined && data.next_max_id !== null && data.next_max_id !== ""
+      ? String(data.next_max_id)
+      : null
 
   return { usernames, nextMaxId }
 }
@@ -156,27 +205,19 @@ export interface ScrapedProfile {
  */
 export async function scrapeProfile(
   handle: string,
-  sessionId: string
+  credentials: ScraperCredentials
 ): Promise<ScrapedProfile | null> {
-  const cleaned = cleanSessionId(sessionId)
-  const headers = buildHeaders(cleaned)
+  const cleaned = cleanSessionId(credentials.sessionId)
+  const headers = buildHeaders(cleaned, credentials.userAgent)
   const normalized = handle.replace(/^@/, "").trim().toLowerCase()
 
   const url = `${BASE_URL}/users/web_profile_info/?username=${encodeURIComponent(normalized)}`
   const res = await fetch(url, { headers })
 
-  if (res.status === 401 || res.status === 403) {
-    throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
-  }
-  if (res.status === 429) {
-    throw new ScraperRateLimitError(RATE_LIMIT_MESSAGE)
-  }
   if (res.status === 404) {
     return null
   }
-  if (!res.ok) {
-    throw new Error(`Instagram web_profile_info request failed with status ${res.status}`)
-  }
+  await throwForStatus(res, "web_profile_info")
 
   const data = await res.json()
   const user = data?.data?.user
@@ -203,13 +244,13 @@ export async function scrapeProfile(
  * Scrapes the authenticated user's full following list from Instagram.
  * Returns a sorted, deduplicated, lowercased array of usernames.
  *
- * @param sessionId - The `sessionid` cookie value from the user's browser
+ * @param credentials - The `sessionid` cookie (and browser User-Agent) from the user's browser
  */
-export async function scrapeFollowing(sessionId: string): Promise<string[]> {
-  const cleaned = cleanSessionId(sessionId)
-  const headers = buildHeaders(cleaned)
+export async function scrapeFollowing(credentials: ScraperCredentials): Promise<string[]> {
+  const cleaned = cleanSessionId(credentials.sessionId)
+  const headers = buildHeaders(cleaned, credentials.userAgent)
 
-  const userId = await fetchUserId(headers)
+  const userId = userIdFromSessionId(cleaned) ?? (await fetchUserId(headers))
 
   const allUsernames: string[] = []
   let nextMaxId: string | null = null
@@ -225,9 +266,9 @@ export async function scrapeFollowing(sessionId: string): Promise<string[]> {
 
     nextMaxId = page.nextMaxId
 
-    // Rate-limit courtesy delay between pages
+    // Jittered delay between pages — fixed intervals look automated
     if (nextMaxId) {
-      await delay(PAGINATION_DELAY_MS)
+      await delay(randomBetween(PAGINATION_DELAY_MIN_MS, PAGINATION_DELAY_MAX_MS))
     }
   } while (nextMaxId)
 

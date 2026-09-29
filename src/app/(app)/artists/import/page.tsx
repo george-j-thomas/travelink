@@ -60,11 +60,18 @@ const POLL_INTERVAL_MS = 2000
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function estimateTime(count: number): string {
-  const totalSeconds = count * 2
+// Must match the pacing in src/lib/import-runner.ts
+const SECONDS_PER_ARTIST_SCRAPE = 25
+const SECONDS_PER_ARTIST_API = 2
+
+function estimateTime(count: number, secondsPerArtist: number): string {
+  const totalSeconds = count * secondsPerArtist
   if (totalSeconds < 60) return `${totalSeconds}s`
   const minutes = Math.ceil(totalSeconds / 60)
-  return `${minutes} min`
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem ? `${hours}h ${rem}m` : `${hours}h`
 }
 
 /* ------------------------------------------------------------------ */
@@ -827,7 +834,13 @@ export default function ImportArtistsPage() {
               Importing Artists
             </CardTitle>
             <CardDescription>
-              {job.total} artists × ~2s each ≈ {estimateTime(job.total)}
+              {job.total} artists × ~{sessionCookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API}s each ≈{" "}
+              {estimateTime(
+                job.total,
+                sessionCookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API
+              )}
+              {sessionCookie &&
+                " (paced slowly to protect your Instagram account — you can leave this page open)"}
             </CardDescription>
           </CardHeader>
 
