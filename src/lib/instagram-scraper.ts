@@ -124,6 +124,43 @@ async function throwForStatus(res: Response, context: string): Promise<void> {
 // Internal API calls
 // ---------------------------------------------------------------------------
 
+/**
+ * Instagram answers rejected sessions and flagged IPs (e.g. cloud hosts) with
+ * redirects to login/challenge pages that loop forever, so redirects are never
+ * followed — they are classified into actionable errors instead.
+ */
+async function igFetch(url: string, headers: Record<string, string>, context: string): Promise<Response> {
+  const res = await fetch(url, { headers, redirect: "manual" })
+  if (res.status < 300 || res.status >= 400) return res
+
+  let path = ""
+  try {
+    path = new URL(res.headers.get("location") ?? "", "https://www.instagram.com").pathname
+  } catch {
+    // Unparseable Location — classify as unknown below
+  }
+  // Path only: query strings can echo request details
+  console.warn(`Instagram ${context} redirected (${res.status}) to ${path || "<none>"}`)
+
+  if (/\/(challenge|checkpoint)\b/.test(path)) {
+    throw new ScraperAuthError(
+      "Instagram wants to verify this session. Open Instagram in your browser or app, " +
+        "complete any security check, then copy a fresh sessionid."
+    )
+  }
+  if (/\/accounts\/(suspended|disabled)\b/.test(path)) {
+    throw new ScraperAuthError("Instagram reports this account as suspended or disabled.")
+  }
+  if (/\/accounts\/login\b/.test(path) || path === "/") {
+    throw new ScraperAuthError(
+      "Instagram rejected the session from this server (redirected to login). " +
+        "The cookie may be expired, or Instagram may be blocking requests from cloud hosting — " +
+        "try a fresh sessionid, or run the import from a local copy of the app."
+    )
+  }
+  throw new Error(`Instagram ${context} request redirected (${res.status}) to ${path || "unknown"}`)
+}
+
 /** The sessionid cookie is `<user_id>:<token>:...` (URL-encoded). */
 function userIdFromSessionId(cleanSessionId: string): string | null {
   let decoded = cleanSessionId
@@ -138,7 +175,7 @@ function userIdFromSessionId(cleanSessionId: string): string | null {
 
 async function fetchUserId(headers: Record<string, string>): Promise<string> {
   const url = `${BASE_URL}/accounts/current_user/?edit=true`
-  const res = await fetch(url, { headers })
+  const res = await igFetch(url, headers, "current_user")
   await throwForStatus(res, "current_user")
 
   const data = await res.json()
@@ -167,7 +204,7 @@ async function fetchFollowingPage(
     url += `&max_id=${maxId}`
   }
 
-  const res = await fetch(url, { headers })
+  const res = await igFetch(url, headers, "following")
   await throwForStatus(res, "following")
 
   const data = await res.json()
@@ -216,7 +253,7 @@ export async function scrapeProfile(
   const normalized = handle.replace(/^@/, "").trim().toLowerCase()
 
   const url = `${BASE_URL}/users/web_profile_info/?username=${encodeURIComponent(normalized)}`
-  const res = await fetch(url, { headers })
+  const res = await igFetch(url, headers, "web_profile_info")
 
   if (res.status === 404) {
     return null
