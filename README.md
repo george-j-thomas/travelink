@@ -97,17 +97,24 @@ Business Discovery is free. It allows roughly 200 calls per hour, and requires:
 
 1. Switch your Instagram account to **Professional** (Creator or Business) and link it to a **Facebook Page**
    (Instagram → Settings → Account type and tools; the Page can be an empty one you create).
-2. Create an app at [developers.facebook.com](https://developers.facebook.com/apps) (type **Business**) and add the
-   **Instagram** product with *API setup with Facebook login*.
-3. In the [Graph API Explorer](https://developers.facebook.com/tools/explorer), choose your app and generate a
-   user token with `instagram_basic`, `pages_show_list`, `business_management`, `pages_read_engagement`.
-4. Exchange it for a long-lived (60-day) token:
+2. Create an app at [developers.facebook.com](https://developers.facebook.com/apps) (use case **Other**, type
+   **Business**). Development mode is fine, because only you log in to it.
+3. In the [Graph API Explorer](https://developers.facebook.com/tools/explorer), choose your app. Under
+   **Permissions**, add `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement`,
+   `business_management` and `ads_read`, then click **Generate Access Token** and keep your Page selected.
+   Business Discovery fails with "(#10) Application does not have permission" if `instagram_manage_insights`
+   (or `ads_read`, for Pages owned by a business portfolio) is missing.
+4. In the Explorer, run `me/accounts?fields=name,instagram_business_account{id,username}` (no leading space).
+   Note the Page `id` and `instagram_business_account.id`.
+5. Swap the short-lived token for a Page token that never expires. First exchange it for a long-lived user token
+   with the app secret (App settings → Basic):
    `GET https://graph.facebook.com/v25.0/oauth/access_token?grant_type=fb_exchange_token&client_id=APP_ID&client_secret=APP_SECRET&fb_exchange_token=SHORT_TOKEN`
-5. Find your Instagram professional account ID:
-   `GET https://graph.facebook.com/v25.0/me/accounts?fields=instagram_business_account&access_token=LONG_TOKEN`
-6. Set `INSTAGRAM_APP_ACCESS_TOKEN` (the long-lived token) and `INSTAGRAM_APP_USER_ID` (the
-   `instagram_business_account.id`) in `.env` / Vercel, then redeploy. When the token expires, the Artists page
-   says so. Generate a new one and update the variable.
+   Then query `PAGE_ID?fields=access_token` with that long-lived token. The returned Page token shows
+   "Expires: Never" in the [Access Token Debugger](https://developers.facebook.com/tools/debug/accesstoken/).
+6. Check it with `IG_USER_ID?fields=business_discovery.username(bluebottle){username,biography}`.
+7. Set `INSTAGRAM_APP_ACCESS_TOKEN` (the Page token) and `INSTAGRAM_APP_USER_ID` (the
+   `instagram_business_account.id`) in `.env.local` / Vercel, then redeploy. If the token ever stops working
+   (password change, app removed, permissions revoked), the Artists page says so. Repeat steps 3 and 5.
 
 ## Deploying to Vercel
 
