@@ -68,9 +68,12 @@ model Artist {
   displayName      String?   @map("display_name")
   bio              String?
   profilePicUrl    String?   @map("profile_pic_url")
+  // unknown | personal | business | creator
   accountType      String    @default("unknown") @map("account_type")
   bioLastFetchedAt DateTime? @map("bio_last_fetched_at")
-  // Bio fetch queue: pending | fetched | unavailable (no public professional profile) | failed
+  // Where the last bio came from: business_discovery | provider (HikerAPI)
+  fetchSource      String?   @map("fetch_source")
+  // Bio fetch queue: pending | fetched | unavailable (no profile from any source) | failed
   fetchStatus      String    @default("pending") @map("fetch_status")
   fetchAttempts    Int       @default(0) @map("fetch_attempts")
   fetchError       String?   @map("fetch_error")

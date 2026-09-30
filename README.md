@@ -39,6 +39,8 @@ Required keys:
 Optional (needed to fetch bios): `INSTAGRAM_APP_ACCESS_TOKEN`, `INSTAGRAM_APP_USER_ID` — see
 [Fetching bios](#fetching-bios-instagram-business-discovery).
 
+Optional: `HIKERAPI_ACCESS_KEY` — see [Search and personal accounts](#search-and-personal-accounts-hikerapi).
+
 ### 4. Run database migrations
 
 ```sh
@@ -62,18 +64,32 @@ Open [http://localhost:3000](http://localhost:3000).
    - Or upload your Instagram data export (`following.json`)
 3. Tick the artists and click **Add to my artists** — they're saved immediately. Your list and ticks are kept
    in this browser, so you can leave and come back, and add in several batches
-4. Or use **Add Artist** to search Instagram as you type (needs the session cookie) and add one artist
+4. Or use **Add Artist** to search Instagram as you type and add one artist (search uses HikerAPI if it's set up,
+   otherwise your session cookie)
 5. Bios are fetched in the background while you have any Travelink page open, then placed on the **Map**
 
 The session cookie is remembered in your browser only (never stored on the server) and is used only to
-read your following list and to search. Bios come from the official Business Discovery API. If it's rate limited
+read your following list, and to search when HikerAPI isn't set up. Bios come from the official Business Discovery
+API, with HikerAPI as a fallback. If a source is rate limited
 the queue pauses and resumes by itself. Nothing is lost.
 
-Only public **Business/Creator** accounts expose their bio through the API. Personal accounts show
+Only public **Business/Creator** accounts expose their bio through Business Discovery. Without HikerAPI, personal accounts show
 "No public bio" — add their location by hand on the artist page.
 
 To cap costs, bio lookups have daily limits (global and per user, reset at midnight UTC). When a limit is hit the
 queue pauses until the reset. Admins can see today's usage, manage invites, and disable users on the **Admin** page.
+
+## Search and personal accounts (HikerAPI)
+
+[HikerAPI](https://hikerapi.com) is a paid, prepaid-balance Instagram data API. When `HIKERAPI_ACCESS_KEY` is set:
+
+- **Add Artist** search works for everyone without an Instagram cookie, with profile pictures
+- Artists that Business Discovery can't see (personal accounts) get their bio from HikerAPI instead of
+  "No public bio". If Business Discovery isn't set up, HikerAPI is used for every bio
+
+Each search or profile lookup costs about $0.001 and counts against the daily limits. Top up a small balance and
+leave auto top-up off, so the balance is the hard cap. If the key is wrong or the balance runs out, search falls
+back to the cookie and personal accounts show "No public bio" again.
 
 ## Fetching bios (Instagram Business Discovery)
 

@@ -113,6 +113,8 @@ function accountTypeLabel(type: string): string {
       return "Business"
     case "creator":
       return "Creator"
+    case "personal":
+      return "Personal"
     default:
       return "Unknown"
   }

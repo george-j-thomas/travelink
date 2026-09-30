@@ -11,7 +11,7 @@ import { prisma } from "@/lib/db"
 export const DAILY_LIMITS = {
   bio_fetch: { global: 1000, perUser: 500 },
   search: { global: 2000, perUser: 300 },
-  profile: { global: 300, perUser: 100 },
+  profile: { global: 1000, perUser: 400 },
 } as const
 
 export type UsageKind = keyof typeof DAILY_LIMITS
