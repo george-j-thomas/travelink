@@ -50,14 +50,16 @@ export async function addArtistByHandle(
   const normalized = normalizeHandle(handle)
 
   // ------------------------------------------------------------------
-  // Step 1 — Check if artist already exists
+  // Step 1 — Check if artist already exists. A record whose bio was never
+  // fetched (profile lookup unavailable when it was added) is re-fetched when
+  // cookie credentials are available instead of staying empty forever.
   // ------------------------------------------------------------------
   const existing = await prisma.artist.findUnique({
     where: { instagramHandle: normalized },
     include: { locations: true },
   })
 
-  if (existing) {
+  if (existing && (existing.bioLastFetchedAt || !scraper)) {
     // Ensure UserArtist link exists
     await prisma.userArtist.upsert({
       where: {
@@ -172,9 +174,11 @@ export async function addArtistByHandle(
   }
 
   // ------------------------------------------------------------------
-  // Step 3 — Create Artist record
+  // Step 3 — Create (or fill in the stub) Artist record
   // ------------------------------------------------------------------
-  const artist = await prisma.artist.create({ data: artistData })
+  const artist = existing
+    ? await prisma.artist.update({ where: { id: existing.id }, data: artistData })
+    : await prisma.artist.create({ data: artistData })
 
   // ------------------------------------------------------------------
   // Step 4 — Parse bio for locations
@@ -204,7 +208,8 @@ export async function addArtistByHandle(
         source: string
       }[] = []
 
-      let primaryAssigned = false
+      // Manually added locations on a re-fetched stub keep their primary flag
+      let primaryAssigned = existing?.locations.some((l) => l.isPrimary) ?? false
 
       for (const loc of parsed) {
         const geo = await geocodeLocation(loc.locationName)
@@ -259,8 +264,10 @@ export async function addArtistByHandle(
   // ------------------------------------------------------------------
   // Step 6 — Link artist to user
   // ------------------------------------------------------------------
-  await prisma.userArtist.create({
-    data: { userId, artistId: artist.id },
+  await prisma.userArtist.upsert({
+    where: { userId_artistId: { userId, artistId: artist.id } },
+    create: { userId, artistId: artist.id },
+    update: {},
   })
 
   return {
@@ -273,7 +280,7 @@ export async function addArtistByHandle(
       accountType: artist.accountType,
     },
     locations: locationRecords,
-    status: "created",
+    status: existing ? "updated" : "created",
     warnings,
   }
 }

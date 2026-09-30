@@ -6,7 +6,7 @@ Track your favorite tattoo artists and their locations around the world.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 20+ (24 recommended to match Vercel; run `nvm use` to pick up `.nvmrc`)
 - Docker (for PostgreSQL)
 
 ### 1. Install dependencies
@@ -55,7 +55,11 @@ Open [http://localhost:3000](http://localhost:3000).
    - Upload your Instagram data export (`following.json`)
    - Paste your Instagram session cookie for instant import
 3. Select which accounts to import
-4. View your artists on the **Map**
+4. Or use **Add Artist** to search Instagram as you type (needs the session cookie) and add one artist
+5. View your artists on the **Map**
+
+The session cookie is remembered in your browser only (never stored on the server) and is also used to
+fetch artist bios, so data-export imports work without Instagram API credentials.
 
 Imports run from your browser tab — keep it open until the import finishes. Cookie imports are paced at
 ~20–30s per artist to protect your Instagram account.

@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -171,6 +172,14 @@ export default function ImportArtistsPage() {
 
   // -- Method state
   const [sessionCookie, setSessionCookie] = useState("")
+  const {
+    cookie: savedCookie,
+    save: saveCookie,
+    clear: clearSavedCookie,
+  } = useInstagramCookie()
+  // A freshly pasted cookie wins over the one remembered in this browser
+  const cookie = sessionCookie.trim() || savedCookie
+  const [importSource, setImportSource] = useState<"upload" | "scrape">("upload")
   const [isUploading, setIsUploading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -322,6 +331,7 @@ export default function ImportArtistsPage() {
         return
       }
 
+      setImportSource("upload")
       await goToSelect(data.handles as string[])
     } catch {
       setError("Network error — check your connection and try again")
@@ -364,8 +374,7 @@ export default function ImportArtistsPage() {
     e.preventDefault()
     setError(null)
 
-    const trimmed = sessionCookie.trim()
-    if (!trimmed) {
+    if (!cookie) {
       setError("Please enter your session cookie")
       return
     }
@@ -376,7 +385,7 @@ export default function ImportArtistsPage() {
       const res = await fetch("/api/import/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: trimmed }),
+        body: JSON.stringify({ sessionId: cookie }),
       })
 
       if (res.status === 401) {
@@ -387,6 +396,9 @@ export default function ImportArtistsPage() {
       const data = await res.json()
 
       if (!res.ok) {
+        if (data.code === "instagram_session" && cookie === savedCookie) {
+          clearSavedCookie()
+        }
         setError(
           res.status === 429
             ? "Rate limited — please try again in a few minutes"
@@ -395,6 +407,9 @@ export default function ImportArtistsPage() {
         return
       }
 
+      saveCookie(cookie)
+      setSessionCookie("")
+      setImportSource("scrape")
       await goToSelect(data.handles as string[])
     } catch {
       setError("Network error — check your connection and try again")
@@ -453,7 +468,7 @@ export default function ImportArtistsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           handles: Array.from(selectedHandles),
-          source: sessionCookie ? "scrape" : "upload",
+          source: importSource,
         }),
       })
 
@@ -488,7 +503,7 @@ export default function ImportArtistsPage() {
       setPhase("processing")
       setStep("processing")
 
-      void runImport(id, sessionCookie)
+      void runImport(id, cookie)
     } catch {
       setError("Network error — check your connection and try again")
     }
@@ -730,7 +745,11 @@ export default function ImportArtistsPage() {
                     <Input
                       id="sessionCookie"
                       type="password"
-                      placeholder="Paste sessionid value…"
+                      placeholder={
+                        savedCookie
+                          ? "Using your saved session — paste to replace"
+                          : "Paste sessionid value…"
+                      }
                       autoComplete="off"
                       value={sessionCookie}
                       onChange={(e) => {
@@ -739,11 +758,23 @@ export default function ImportArtistsPage() {
                       }}
                       disabled={isFetching}
                     />
+                    {savedCookie && (
+                      <p className="text-xs text-muted-foreground">
+                        Remembered in this browser only.{" "}
+                        <button
+                          type="button"
+                          onClick={clearSavedCookie}
+                          className="underline underline-offset-2 hover:text-foreground"
+                        >
+                          Forget it
+                        </button>
+                      </p>
+                    )}
                   </div>
                   <Button
                     type="submit"
                     className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400"
-                    disabled={isFetching || !sessionCookie.trim()}
+                    disabled={isFetching || !cookie}
                   >
                     {isFetching ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -917,12 +948,12 @@ export default function ImportArtistsPage() {
               Importing Artists
             </CardTitle>
             <CardDescription>
-              {job.total} artists × ~{sessionCookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API}s each ≈{" "}
+              {job.total} artists × ~{cookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API}s each ≈{" "}
               {estimateTime(
                 job.total,
-                sessionCookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API
+                cookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API
               )}
-              {sessionCookie && " — paced slowly to protect your Instagram account"}.
+              {cookie && " — paced slowly to protect your Instagram account"}.
               Keep this tab open until it finishes.
             </CardDescription>
           </CardHeader>
@@ -1021,7 +1052,7 @@ export default function ImportArtistsPage() {
               <Button
                 onClick={() => {
                   setError(null)
-                  void runImport(jobId, sessionCookie)
+                  void runImport(jobId, cookie)
                 }}
                 className="bg-amber-500 font-medium text-black hover:bg-amber-400"
               >

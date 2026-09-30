@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { addArtistByHandle } from "@/lib/artist-pipeline"
 import { RateLimitError } from "@/lib/instagram"
+import { ScraperAuthError, ScraperRateLimitError } from "@/lib/instagram-scraper"
 
 // POST /api/artists — Add artist by Instagram handle
 export async function POST(request: NextRequest) {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { handle } = body as { handle?: unknown }
+  const { handle, sessionId } = body as { handle?: unknown; sessionId?: unknown }
 
   if (!handle || typeof handle !== "string" || handle.trim().length === 0) {
     return NextResponse.json(
@@ -31,15 +32,32 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
+  if (sessionId !== undefined && typeof sessionId !== "string") {
+    return NextResponse.json(
+      { error: "sessionId must be a string" },
+      { status: 400 }
+    )
+  }
+
+  const scraper = sessionId?.trim()
+    ? { sessionId, userAgent: request.headers.get("user-agent") ?? undefined }
+    : undefined
 
   try {
-    const result = await addArtistByHandle(handle, session.user.id)
-    return NextResponse.json(result, { status: 201 })
+    const result = await addArtistByHandle(handle, session.user.id, scraper)
+    return NextResponse.json(result, { status: result.status === "created" ? 201 : 200 })
   } catch (err) {
-    if (err instanceof RateLimitError) {
+    if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
       return NextResponse.json(
         { error: err.message },
         { status: 429 }
+      )
+    }
+    // 403, not 401: the Instagram cookie was rejected, not the Travelink session
+    if (err instanceof ScraperAuthError) {
+      return NextResponse.json(
+        { error: err.message, code: "instagram_session" },
+        { status: 403 }
       )
     }
     console.error("POST /api/artists failed:", err)

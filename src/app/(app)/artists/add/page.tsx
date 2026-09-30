@@ -8,11 +8,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
   Check,
   Circle,
   Loader2,
   MapPin,
   Plus,
+  Search,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -28,10 +30,19 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
+
+interface SearchUser {
+  username: string
+  fullName: string | null
+  profilePicUrl: string | null
+  isVerified: boolean
+  isPrivate: boolean
+}
 
 interface ArtistLocation {
   id: string
@@ -75,6 +86,10 @@ const STEPS = [
 
 const STEP_ADVANCE_MS = 1200
 const DONE_PAUSE_MS = 500
+
+// Each search is a request to Instagram with the user's cookie — keep them sparse
+const SEARCH_DEBOUNCE_MS = 400
+const SEARCH_MIN_CHARS = 2
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -124,9 +139,24 @@ export default function AddArtistPage() {
   const [step, setStep] = useState(0)
   const [result, setResult] = useState<ArtistResult | null>(null)
 
+  // -- Instagram search
+  const { cookie, save: saveCookie, clear: clearCookie } = useInstagramCookie()
+  const [cookieDraft, setCookieDraft] = useState("")
+  const [results, setResults] = useState<SearchUser[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [searchPaused, setSearchPaused] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
+  const searchCacheRef = useRef(new Map<string, SearchUser[]>())
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+      searchAbortRef.current?.abort()
     }
   }, [])
 
@@ -141,15 +171,144 @@ export default function AddArtistPage() {
     setHandle("")
     setError(null)
     setResult(null)
+    setResults([])
+    setOpen(false)
     setView("idle")
     setStep(0)
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  /* ---------------------------------------------------------------- */
+  /*  Search-as-you-type                                                */
+  /* ---------------------------------------------------------------- */
 
-    const cleaned = stripAt(handle)
+  function cancelPendingSearch() {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = null
+    searchAbortRef.current?.abort()
+    searchAbortRef.current = null
+  }
+
+  function onHandleChange(raw: string) {
+    const query = stripAt(raw)
+    setHandle(query)
+    if (error) setError(null)
+
+    cancelPendingSearch()
+    setActive(-1)
+
+    if (!cookie || searchPaused || query.length < SEARCH_MIN_CHARS) {
+      setResults([])
+      setSearching(false)
+      setOpen(false)
+      return
+    }
+
+    const cached = searchCacheRef.current.get(query.toLowerCase())
+    if (cached) {
+      setResults(cached)
+      setSearching(false)
+      setOpen(true)
+      return
+    }
+
+    setSearching(true)
+    setOpen(true)
+    searchTimerRef.current = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS)
+  }
+
+  async function runSearch(query: string) {
+    const controller = new AbortController()
+    searchAbortRef.current = controller
+
+    try {
+      const res = await fetch("/api/instagram/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, sessionId: cookie }),
+        signal: controller.signal,
+      })
+
+      if (res.status === 401) {
+        router.push("/login")
+        return
+      }
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setResults([])
+        setOpen(false)
+        if (data.code === "instagram_session") {
+          clearCookie()
+          setSearchError(data.error)
+        } else if (res.status === 429) {
+          // Stop hammering Instagram for the rest of this visit
+          setSearchPaused(true)
+          setOpen(false)
+          setSearchError(
+            "Instagram is rate limiting searches. You can still type the full handle."
+          )
+        } else {
+          setSearchError("Search failed. You can still type the full handle.")
+        }
+        return
+      }
+
+      const users = data.users as SearchUser[]
+      searchCacheRef.current.set(query.toLowerCase(), users)
+      setResults(users)
+      setSearchError(null)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return
+      setOpen(false)
+      setSearchError("Search failed. You can still type the full handle.")
+    } finally {
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null
+        setSearching(false)
+      }
+    }
+  }
+
+  function selectUser(user: SearchUser) {
+    cancelPendingSearch()
+    setOpen(false)
+    setHandle(user.username)
+    void addHandle(user.username)
+  }
+
+  function onHandleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open || results.length === 0) {
+      if (e.key === "Escape") setOpen(false)
+      return
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setActive((i) => (i + 1) % results.length)
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setActive((i) => (i <= 0 ? results.length - 1 : i - 1))
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault()
+      selectUser(results[active])
+    } else if (e.key === "Escape") {
+      setOpen(false)
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /*  Add                                                               */
+  /* ---------------------------------------------------------------- */
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    cancelPendingSearch()
+    setOpen(false)
+    void addHandle(stripAt(handle))
+  }
+
+  async function addHandle(cleaned: string) {
     setHandle(cleaned)
 
     const validationError = validateHandle(cleaned)
@@ -175,7 +334,7 @@ export default function AddArtistPage() {
       const res = await fetch("/api/artists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle: cleaned }),
+        body: JSON.stringify({ handle: cleaned, sessionId: cookie || undefined }),
       })
 
       clearTimer()
@@ -188,6 +347,7 @@ export default function AddArtistPage() {
       const data = await res.json()
 
       if (!res.ok) {
+        if (data.code === "instagram_session") clearCookie()
         setError(
           res.status === 429
             ? "Rate limited — please try again in a few minutes"
@@ -406,7 +566,9 @@ export default function AddArtistPage() {
               Add Artist
             </CardTitle>
             <CardDescription>
-              Enter a tattoo artist&apos;s Instagram handle
+              {cookie
+                ? "Search Instagram for a tattoo artist, or type their exact handle"
+                : "Enter a tattoo artist\u2019s Instagram handle"}
             </CardDescription>
           </CardHeader>
 
@@ -433,27 +595,166 @@ export default function AddArtistPage() {
                     ref={inputRef}
                     id="handle"
                     type="text"
-                    placeholder="artist_handle"
+                    placeholder={cookie ? "Search artists…" : "artist_handle"}
                     autoFocus
                     autoComplete="off"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
                     required
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-controls="handle-results"
+                    aria-autocomplete="list"
+                    aria-activedescendant={
+                      active >= 0 ? `handle-option-${active}` : undefined
+                    }
                     value={handle}
-                    onChange={(e) => {
-                      setHandle(stripAt(e.target.value))
-                      if (error) setError(null)
+                    onChange={(e) => onHandleChange(e.target.value)}
+                    onKeyDown={onHandleKeyDown}
+                    onFocus={() => {
+                      if (results.length > 0) setOpen(true)
                     }}
-                    className="pl-7"
+                    onBlur={() => setOpen(false)}
+                    className="pl-7 pr-8"
                   />
+                  {searching && (
+                    <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+                  )}
+
+                  {/* Results dropdown */}
+                  {open && (results.length > 0 || !searching) && (
+                    <div
+                      id="handle-results"
+                      role="listbox"
+                      className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-border/50 bg-background/80 py-1 shadow-2xl shadow-black/25 backdrop-blur-xl backdrop-saturate-150"
+                    >
+                      {results.length === 0 ? (
+                        <p className="px-3 py-2.5 text-sm text-muted-foreground">
+                          No accounts found. Press Enter to add @{handle}.
+                        </p>
+                      ) : (
+                        results.map((user, i) => (
+                          <button
+                            key={user.username}
+                            id={`handle-option-${i}`}
+                            type="button"
+                            role="option"
+                            aria-selected={i === active}
+                            // Keep focus in the input so blur doesn't close the list first
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selectUser(user)}
+                            onMouseEnter={() => setActive(i)}
+                            className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
+                              i === active ? "bg-amber-500/10" : "hover:bg-muted/50"
+                            }`}
+                          >
+                            <Avatar className="size-9">
+                              {user.profilePicUrl && (
+                                <AvatarImage
+                                  src={user.profilePicUrl}
+                                  alt=""
+                                  referrerPolicy="no-referrer"
+                                />
+                              )}
+                              <AvatarFallback className="text-xs">
+                                {getInitials(user.fullName, user.username)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="flex items-center gap-1 text-sm font-medium">
+                                <span className="truncate">{user.username}</span>
+                                {user.isVerified && (
+                                  <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                                )}
+                              </p>
+                              {(user.fullName || user.isPrivate) && (
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {[user.fullName, user.isPrivate && "Private"]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {searchError ? (
+                  <p className="text-xs text-amber-300/90">{searchError}</p>
+                ) : (
+                  cookie && (
+                    <p className="text-xs text-muted-foreground">
+                      Instagram connected in this browser.{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearCookie()
+                          setResults([])
+                          setOpen(false)
+                        }}
+                        className="underline underline-offset-2 hover:text-foreground"
+                      >
+                        Disconnect
+                      </button>
+                    </p>
+                  )
+                )}
               </div>
 
               <Button type="submit" className="w-full">
                 Add Artist
               </Button>
             </form>
+
+            {/* Connect Instagram */}
+            {!cookie && (
+              <div className="grid gap-2.5 rounded-lg border border-border/50 bg-muted/20 p-3.5">
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <Search className="h-3.5 w-3.5 text-amber-400" />
+                  Search Instagram as you type
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Paste your Instagram{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                    sessionid
+                  </code>{" "}
+                  cookie (instagram.com → F12 → Application → Cookies). It
+                  also lets Travelink read artist bios, and is remembered in
+                  this browser only.
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    saveCookie(cookieDraft)
+                    setCookieDraft("")
+                    setSearchError(null)
+                    setSearchPaused(false)
+                    inputRef.current?.focus()
+                  }}
+                  className="flex gap-2"
+                >
+                  <Input
+                    type="password"
+                    aria-label="Instagram sessionid cookie"
+                    placeholder="Paste sessionid value…"
+                    autoComplete="off"
+                    value={cookieDraft}
+                    onChange={(e) => setCookieDraft(e.target.value)}
+                  />
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={!cookieDraft.trim()}
+                  >
+                    Connect
+                  </Button>
+                </form>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
