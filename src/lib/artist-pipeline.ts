@@ -18,6 +18,7 @@ import {
   RateLimitError,
 } from "@/lib/instagram"
 import { parseBioLocations } from "@/lib/bio-parser"
+import { BudgetExceededError, reserveUsage } from "@/lib/usage"
 import { geocodeLocation } from "@/lib/geocoding"
 import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
 
@@ -146,10 +147,12 @@ export async function trackArtists(userId: string, accounts: ArtistHint[]): Prom
  * External calls are intentionally NOT wrapped in a Prisma transaction — they
  * are slow and shouldn't hold a connection open.
  *
+ * @param userId whose daily budget the lookup counts against
  * @throws {RateLimitError} Instagram is throttling — the artist stays pending
  * @throws {BusinessDiscoveryConfigError} token missing/expired — the artist stays pending
+ * @throws {BudgetExceededError} daily limit reached — the artist stays pending
  */
-export async function fetchArtistBio(artistId: string): Promise<FetchBioResult> {
+export async function fetchArtistBio(artistId: string, userId: string): Promise<FetchBioResult> {
   const now = new Date()
   const { count: claimed } = await prisma.artist.updateMany({
     where: { id: artistId, ...claimableWhere(now) },
@@ -165,6 +168,7 @@ export async function fetchArtistBio(artistId: string): Promise<FetchBioResult> 
   let usagePercent = 0
 
   try {
+    await reserveUsage("bio_fetch", userId)
     const result = await fetchArtistProfile(artist.instagramHandle)
     usagePercent = result.usagePercent
     const profile = result.profile
@@ -239,7 +243,11 @@ export async function fetchArtistBio(artistId: string): Promise<FetchBioResult> 
 
     return { outcome: "fetched", usagePercent, warnings }
   } catch (err) {
-    if (err instanceof RateLimitError || err instanceof BusinessDiscoveryConfigError) {
+    if (
+      err instanceof RateLimitError ||
+      err instanceof BusinessDiscoveryConfigError ||
+      err instanceof BudgetExceededError
+    ) {
       // Not the artist's fault — release the claim without using up an attempt
       await prisma.artist.update({ where: { id: artistId }, data: { fetchClaimedAt: null } })
       throw err
@@ -275,6 +283,7 @@ export function countPendingArtists(userId: string): Promise<number> {
  *
  * @throws {RateLimitError}
  * @throws {BusinessDiscoveryConfigError}
+ * @throws {BudgetExceededError}
  */
 export async function processNextPendingArtist(userId: string): Promise<{
   artist: SerializedArtist | null
@@ -288,7 +297,7 @@ export async function processNextPendingArtist(userId: string): Promise<{
   })
   if (!next) return { artist: null, outcome: null, usagePercent: 0 }
 
-  const { outcome, usagePercent } = await fetchArtistBio(next.id)
+  const { outcome, usagePercent } = await fetchArtistBio(next.id, userId)
   return { artist: await loadUserArtist(userId, next.id), outcome, usagePercent }
 }
 
@@ -332,7 +341,7 @@ export async function addArtistByHandle(userId: string, hint: ArtistHint): Promi
       warnings.push("Saved. Instagram bio lookup isn't set up yet, so this artist's bio will be fetched once it is.")
     } else {
       try {
-        const result = await fetchArtistBio(artist.id)
+        const result = await fetchArtistBio(artist.id, userId)
         warnings.push(...result.warnings)
         if (result.outcome === "retry" || result.outcome === "skipped") {
           warnings.push("Saved. The bio will be fetched automatically from your Artists page.")
@@ -340,6 +349,8 @@ export async function addArtistByHandle(userId: string, hint: ArtistHint): Promi
       } catch (err) {
         if (err instanceof RateLimitError) {
           warnings.push("Saved. Instagram is rate limiting right now — the bio will be fetched automatically later.")
+        } else if (err instanceof BudgetExceededError) {
+          warnings.push(`Saved. ${err.message} The bio will be fetched after that.`)
         } else if (err instanceof BusinessDiscoveryConfigError) {
           console.error("Business Discovery config error:", err.message)
           warnings.push("Saved. Instagram bio lookup is misconfigured, so the bio will be fetched once it's fixed.")

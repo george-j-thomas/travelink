@@ -34,6 +34,10 @@ export default function LoginPage() {
         if (providers?.instagram) setHasInstagram(true);
       })
       .catch(() => {});
+
+    if (new URLSearchParams(window.location.search).get("error") === "InviteRequired") {
+      setError("That Instagram account isn't linked to Travelink. Travelink is invite-only.");
+    }
   }, []);
 
   async function onSubmit(e: React.FormEvent) {

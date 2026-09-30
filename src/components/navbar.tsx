@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { LogOut, MapPin, User } from "lucide-react"
+import { LogOut, MapPin, ShieldCheck, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -50,7 +50,7 @@ export function Navbar() {
   const user =
     session?.user ??
     (status === "unauthenticated"
-      ? { name: "Dev User", email: "dev@travelink.app", image: null }
+      ? { name: "Dev User", email: "dev@travelink.app", image: null, isAdmin: true }
       : null)
 
   return (
@@ -145,6 +145,13 @@ export function Navbar() {
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
+
+            {user?.isAdmin && (
+              <DropdownMenuItem render={<Link href="/admin" />}>
+                <ShieldCheck className="mr-2 size-4" />
+                Admin
+              </DropdownMenuItem>
+            )}
 
             <DropdownMenuItem
               onClick={() => signOut({ callbackUrl: "/login" })}

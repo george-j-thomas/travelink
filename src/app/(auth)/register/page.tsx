@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { InstagramIcon } from "@/components/icons/instagram";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type InviteCheck = "none" | "checking" | "valid" | "used" | "expired" | "revoked" | "invalid";
+
+const INVITE_MESSAGES: Record<Exclude<InviteCheck, "none" | "checking" | "valid">, string> = {
+  invalid: "This invite link isn't valid.",
+  used: "This invite link has already been used.",
+  expired: "This invite link has expired. Ask for a new one.",
+  revoked: "This invite link was revoked. Ask for a new one.",
+};
+
+/** Accepts a bare code or a pasted invite link. */
+function extractInviteCode(value: string): string {
+  const trimmed = value.trim();
+  const match = /[?&]invite=([^&#\s]+)/.exec(trimmed);
+  return match ? decodeURIComponent(match[1]) : trimmed;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -28,6 +44,34 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasInstagram, setHasInstagram] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCheck, setInviteCheck] = useState<InviteCheck>("none");
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("invite");
+    if (code) setInviteCode(code);
+  }, []);
+
+  // Tell people up front whether their link still works
+  useEffect(() => {
+    const code = extractInviteCode(inviteCode);
+    if (!code) {
+      setInviteCheck("none");
+      return;
+    }
+    setInviteCheck("checking");
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/invites/${encodeURIComponent(code)}`, { signal: controller.signal })
+        .then((res) => res.json())
+        .then((data: { status?: InviteCheck }) => setInviteCheck(data.status ?? "invalid"))
+        .catch(() => {});
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [inviteCode]);
 
   useEffect(() => {
     fetch("/api/auth/providers")
@@ -63,6 +107,7 @@ export default function RegisterPage() {
           email,
           password,
           name: name.trim() || undefined,
+          inviteCode: extractInviteCode(inviteCode) || undefined,
         }),
       });
 
@@ -104,7 +149,7 @@ export default function RegisterPage() {
           Create your account
         </CardTitle>
         <CardDescription>
-          Start tracking tattoo artists on the move
+          Travelink is invite-only. Use the invite link you were sent.
         </CardDescription>
       </CardHeader>
 
@@ -119,6 +164,34 @@ export default function RegisterPage() {
 
         {/* Registration form */}
         <form onSubmit={onSubmit} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="invite">Invite code</Label>
+            <Input
+              id="invite"
+              type="text"
+              placeholder="Paste your invite link or code"
+              autoComplete="off"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              disabled={isLoading}
+              aria-describedby="invite-status"
+            />
+            <p id="invite-status" className="min-h-4 text-xs" aria-live="polite">
+              {inviteCheck === "valid" && (
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Invite accepted
+                </span>
+              )}
+              {inviteCheck === "checking" && (
+                <span className="text-muted-foreground">Checking invite…</span>
+              )}
+              {inviteCheck !== "valid" && inviteCheck !== "checking" && inviteCheck !== "none" && (
+                <span className="text-destructive">{INVITE_MESSAGES[inviteCheck]}</span>
+              )}
+            </p>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="name">
               Name{" "}

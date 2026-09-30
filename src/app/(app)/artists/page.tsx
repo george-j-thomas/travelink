@@ -338,7 +338,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
       icon = <PauseCircle className="mt-0.5 size-4 shrink-0 text-amber-500" />
       text = (
         <>
-          Instagram&apos;s hourly lookup limit was reached. {remaining === 1 ? "1 bio" : `${remaining} bios`} will resume
+          Bio lookups hit a rate limit. {remaining === 1 ? "1 bio" : `${remaining} bios`} will resume
           {queue.pausedUntil ? ` at ${formatResumeTime(queue.pausedUntil)}` : " shortly"}. Your
           artists are saved.
         </>

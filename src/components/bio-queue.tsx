@@ -247,7 +247,7 @@ function BioQueuePill({ state }: { state: BioQueueState }) {
       {state.status === "paused" ? (
         <>
           <PauseCircle className="size-3.5 text-amber-500" />
-          Instagram limit reached · {state.remaining === 1 ? "1 bio resumes" : `${state.remaining} bios resume`} at{" "}
+          Lookup limit reached · {state.remaining === 1 ? "1 bio resumes" : `${state.remaining} bios resume`} at{" "}
           {formatResumeTime(state.pausedUntil!)}
         </>
       ) : (

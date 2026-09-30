@@ -16,12 +16,17 @@ model User {
   instagramId   String?     @unique @map("instagram_id")
   name          String?
   image         String?
+  // Set by an admin to revoke access; blocks sign-in and every API call
+  disabledAt    DateTime?   @map("disabled_at")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
   artists       UserArtist[]
   accounts      Account[]
   sessions      Session[]
+  invitesSent   Invite[]    @relation("InviteCreatedBy")
+  inviteUsed    Invite?     @relation("InviteUsedBy")
+  apiUsage      ApiUsage[]
 
   @@map("users")
 }
@@ -113,3 +118,41 @@ model ArtistLocation {
   @@map("artist_locations")
 }
 
+
+// Single-use registration link. Registration is invite-only (admins, listed in
+// ADMIN_EMAILS, can register without one).
+model Invite {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  // Who the invite is for — shown on the admin page only
+  note        String?
+  createdById String    @map("created_by_id")
+  usedById    String?   @unique @map("used_by_id")
+  usedAt      DateTime? @map("used_at")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  createdBy User  @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy    User? @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@map("invites")
+}
+
+// Daily call counters for paid / metered APIs. scope is "global" or a user id.
+// kind: e.g. "bio_parse" (Claude), "search", "profile" (paid Instagram provider)
+model ApiUsage {
+  id     String   @id @default(cuid())
+  scope  String
+  userId String?  @map("user_id")
+  kind   String
+  day    DateTime @db.Date
+  count  Int      @default(0)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, kind, day])
+  @@index([userId])
+  @@map("api_usage")
+}

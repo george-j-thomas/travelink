@@ -20,7 +20,11 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `bio-parser.ts` — Claude tool_use for structured location extraction
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
-  - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers)
+  - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers). Instagram OAuth only signs in already-linked accounts (no sign-up)
+  - `auth.ts` — `requireSession()` (also rejects deleted/disabled users with a DB lookup, since JWTs live 30 days) and `requireAdmin()` (throws `ForbiddenError`)
+  - `admin.ts` — Admins are the emails in `ADMIN_EMAILS` (comma-separated env var), not a DB role
+  - `access.ts` — Invite-only registration (`registerUser` consumes a single-use invite atomically), invite create/revoke, user disable
+  - `usage.ts` — Daily budgets for metered external calls (`reserveUsage(kind, userId)` atomically increments global + per-user counters, throws `BudgetExceededError`)
   - `db.ts` — Prisma client singleton
 
 - `src/app/api/` — Route handlers. All follow the same pattern:
@@ -63,6 +67,8 @@ try {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 }
 ```
+Admin routes use `requireAdmin()` the same way, returning 403 when the error is a `ForbiddenError` and 401 otherwise.
+
 Import `requireSession` from `@/lib/auth`, never import `authOptions` from the route handler (circular dep risk) — use `@/lib/auth-options`.
 
 ### Prisma
@@ -89,6 +95,10 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - `NEXT_PUBLIC_*` — Client-accessible (only Mapbox token)
 - Everything else is server-only (Instagram tokens, Anthropic key, DB URL, NextAuth secret)
 - See `.env.example` for the full list
+
+### Access and Cost Control
+- Registration is invite-only (admin emails can register without one). New sign-up paths must go through `registerUser` in `@/lib/access`
+- Call `reserveUsage(kind, userId)` before every metered external call (Business Discovery, paid scraping providers). Handle `BudgetExceededError` like a rate limit: pause, don't mark failed. Limits are in `DAILY_LIMITS`
 
 ### Git
 - Never add `Co-authored-by` trailers (or any AI attribution) to commit messages, PR/MR titles, or PR/MR descriptions

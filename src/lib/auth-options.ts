@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { compare } from "bcryptjs"
 import { prisma } from "@/lib/db"
+import { isAdminEmail } from "@/lib/admin"
 
 const providers: AuthOptions["providers"] = []
 
@@ -32,7 +33,7 @@ providers.push(
           where: { email: credentials.email },
         })
 
-        if (!user || !user.passwordHash) {
+        if (!user || !user.passwordHash || user.disabledAt) {
           return null
         }
 
@@ -59,10 +60,20 @@ export const authOptions: AuthOptions = {
   },
 
   callbacks: {
-    // Instagram API doesn't return an email — allow sign-in without one
+    // Registration is invite-only: Instagram sign-in only works for an
+    // Instagram account already linked to a Travelink user
     async signIn({ account }) {
       if (account?.provider === "instagram") {
-        return true
+        const linked = await prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
+          },
+          include: { user: { select: { disabledAt: true } } },
+        })
+        return linked && !linked.user.disabledAt ? true : "/login?error=InviteRequired"
       }
       return true
     },
@@ -78,6 +89,7 @@ export const authOptions: AuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id
+        session.user.isAdmin = isAdminEmail(token.email)
       }
       return session
     },

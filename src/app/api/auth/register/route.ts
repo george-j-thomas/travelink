@@ -1,46 +1,44 @@
-import { NextResponse } from "next/server"
-import { hash } from "bcryptjs"
-import { prisma } from "@/lib/db"
+import { NextResponse, type NextRequest } from "next/server"
+import { EmailTakenError, InviteError, registerUser } from "@/lib/access"
 
-export async function POST(request: Request) {
-  const body = await request.json()
-  const { email, password, name } = body as {
-    email?: string
-    password?: string
-    name?: string
+// POST /api/auth/register — invite-only sign-up
+export async function POST(request: NextRequest) {
+  let body: { email?: unknown; password?: unknown; name?: unknown; inviteCode?: unknown }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
+
+  const email = typeof body.email === "string" ? body.email.trim() : ""
+  const password = typeof body.password === "string" ? body.password : ""
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : null
+  const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode : null
 
   if (!email) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 })
   }
-
-  if (!password || password.length < 8) {
+  if (password.length < 8) {
     return NextResponse.json(
       { error: "Password must be at least 8 characters" },
       { status: 400 },
     )
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } })
-  if (existingUser) {
+  try {
+    const user = await registerUser({ email, password, name, inviteCode })
     return NextResponse.json(
-      { error: "A user with this email already exists" },
-      { status: 409 },
+      { id: user.id, email: user.email, name: user.name },
+      { status: 201 },
     )
+  } catch (err) {
+    if (err instanceof InviteError) {
+      return NextResponse.json({ error: err.message, code: `invite_${err.status}` }, { status: 403 })
+    }
+    if (err instanceof EmailTakenError) {
+      return NextResponse.json({ error: err.message }, { status: 409 })
+    }
+    console.error("POST /api/auth/register failed:", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-
-  const passwordHash = await hash(password, 12)
-
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      name: name || null,
-    },
-  })
-
-  return NextResponse.json(
-    { id: user.id, email: user.email, name: user.name },
-    { status: 201 },
-  )
 }

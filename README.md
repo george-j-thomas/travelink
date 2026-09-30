@@ -33,6 +33,8 @@ Required keys:
 - `ANTHROPIC_API_KEY` — from [console.anthropic.com](https://console.anthropic.com)
 - `NEXT_PUBLIC_MAPBOX_TOKEN` — from [account.mapbox.com](https://account.mapbox.com)
 - `NEXTAUTH_SECRET` — generate with `openssl rand -base64 32`
+- `ADMIN_EMAILS` — your email (comma-separate several). Admins can register without an invite and see the
+  **Admin** page
 
 Optional (needed to fetch bios): `INSTAGRAM_APP_ACCESS_TOKEN`, `INSTAGRAM_APP_USER_ID` — see
 [Fetching bios](#fetching-bios-instagram-business-discovery).
@@ -53,7 +55,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Usage
 
-1. Create an account with email/password
+1. Create an account with email/password. Travelink is invite-only: an admin creates a single-use invite link on
+   the **Admin** page (avatar menu → Admin) and sends it to you. Admins (`ADMIN_EMAILS`) don't need one
 2. Go to **Import Artists** and either:
    - Paste your Instagram session cookie to load your following list
    - Or upload your Instagram data export (`following.json`)
@@ -68,6 +71,9 @@ the queue pauses and resumes by itself. Nothing is lost.
 
 Only public **Business/Creator** accounts expose their bio through the API. Personal accounts show
 "No public bio" — add their location by hand on the artist page.
+
+To cap costs, bio lookups have daily limits (global and per user, reset at midnight UTC). When a limit is hit the
+queue pauses until the reset. Admins can see today's usage, manage invites, and disable users on the **Admin** page.
 
 ## Fetching bios (Instagram Business Discovery)
 

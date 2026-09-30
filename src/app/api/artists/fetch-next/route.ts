@@ -9,6 +9,7 @@ import {
   isBusinessDiscoveryConfigured,
   RateLimitError,
 } from "@/lib/instagram"
+import { BudgetExceededError } from "@/lib/usage"
 
 // One Instagram lookup + Claude parse + a few geocodes
 export const maxDuration = 60
@@ -62,7 +63,7 @@ export async function POST() {
       nextDelayMs: outcome === "skipped" ? 0 : delayForUsage(usagePercent),
     })
   } catch (err) {
-    if (err instanceof RateLimitError) {
+    if (err instanceof RateLimitError || err instanceof BudgetExceededError) {
       return NextResponse.json({
         status: "rate_limited",
         remaining: await countPendingArtists(userId),
