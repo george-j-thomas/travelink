@@ -18,7 +18,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
   - `instagram-provider.ts` — Paid provider (HikerAPI, `HIKERAPI_ACCESS_KEY`, prepaid balance): account search for the Add page typeahead, and profiles of accounts Business Discovery can't see (personal accounts). Optional: without the key, search falls back to the user's cookie. Maps errors to `ProviderConfigError` (bad key / empty balance) / `RateLimitError`
   - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list, and for account search when the paid provider isn't configured or fails (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
-  - `bio-parser.ts` — Claude tool_use for structured location extraction
+  - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
   - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers). Instagram OAuth only signs in already-linked accounts (no sign-up)

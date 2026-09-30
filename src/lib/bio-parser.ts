@@ -30,7 +30,7 @@ Common patterns in tattoo artist bios:
 - Cities separated by | or / → multiple locations (first is usually primary)
 
 Rules:
-- If the bio contains NO discernible location information, call the tool with an empty array
+- If the bio contains NO discernible location information, return an empty locations array
 - If you are UNCERTAIN about a location, DO NOT include it
 - Do NOT treat shop names or Instagram handles as locations
 - Expand all abbreviations to full names (NYC → New York City)
@@ -38,37 +38,36 @@ Rules:
 - For guest spots, extract dates if mentioned (convert to ISO format YYYY-MM-DD), null if no dates
 - The first/primary location mentioned is usually the home base (isGuestSpot: false)`
 
-const EXTRACT_LOCATIONS_TOOL: Anthropic.Tool = {
-  name: "extract_locations",
-  description: "Extract location data from a tattoo artist bio",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      locations: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            locationName: { type: "string" },
-            city: { type: ["string", "null"] },
-            country: { type: ["string", "null"] },
-            isGuestSpot: { type: "boolean" },
-            startDate: { type: ["string", "null"] },
-            endDate: { type: ["string", "null"] },
-          },
-          required: [
-            "locationName",
-            "city",
-            "country",
-            "isGuestSpot",
-            "startDate",
-            "endDate",
-          ],
+// Structured output schema (newer Sonnet models reject forced tool_choice)
+const LOCATIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    locations: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          locationName: { type: "string" },
+          city: { type: ["string", "null"] },
+          country: { type: ["string", "null"] },
+          isGuestSpot: { type: "boolean" },
+          startDate: { type: ["string", "null"] },
+          endDate: { type: ["string", "null"] },
         },
+        required: [
+          "locationName",
+          "city",
+          "country",
+          "isGuestSpot",
+          "startDate",
+          "endDate",
+        ],
+        additionalProperties: false,
       },
     },
-    required: ["locations"],
   },
+  required: ["locations"],
+  additionalProperties: false,
 }
 
 // Singleton client — reads ANTHROPIC_API_KEY from env automatically
@@ -82,11 +81,12 @@ export async function parseBioLocations(
   }
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5-5",
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
-    tools: [EXTRACT_LOCATIONS_TOOL],
-    tool_choice: { type: "tool", name: "extract_locations" },
+    output_config: {
+      format: { type: "json_schema", schema: LOCATIONS_SCHEMA },
+    },
     messages: [
       {
         role: "user",
@@ -95,14 +95,14 @@ export async function parseBioLocations(
     ],
   })
 
-  const toolBlock = response.content.find(
-    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+  const textBlock = response.content.find(
+    (block): block is Anthropic.TextBlock => block.type === "text",
   )
 
-  if (!toolBlock) {
+  if (!textBlock) {
     return []
   }
 
-  const input = toolBlock.input as { locations: ParsedLocation[] }
-  return input.locations
+  const parsed = JSON.parse(textBlock.text) as { locations: ParsedLocation[] }
+  return parsed.locations
 }
