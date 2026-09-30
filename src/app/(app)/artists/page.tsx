@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Search,
@@ -10,6 +10,11 @@ import {
   Plane,
   UserRound,
   RefreshCw,
+  Clock,
+  EyeOff,
+  AlertCircle,
+  Loader2,
+  PauseCircle,
 } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,6 +28,11 @@ import {
 } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { OnboardingGuide } from "@/components/onboarding-guide"
+import {
+  formatResumeTime,
+  useBioQueue,
+  type BioQueueState,
+} from "@/components/bio-queue"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types
@@ -49,6 +59,8 @@ interface Artist {
   bio: string | null
   profilePicUrl: string | null
   accountType: string
+  fetchStatus: "pending" | "fetched" | "unavailable" | "failed"
+  fetchError: string | null
   notes: string | null
   updatedAt?: string
   locations: ArtistLocation[]
@@ -210,6 +222,14 @@ function ArtistCard({ artist }: { artist: Artist }) {
             </div>
           </div>
 
+          {/* ── Bio status ── */}
+          {artist.fetchStatus !== "fetched" && !hasLocations && (
+            <>
+              <Separator className="my-3" />
+              <FetchStatusBadge artist={artist} />
+            </>
+          )}
+
           {/* ── Location badges ── */}
           {hasLocations && (
             <>
@@ -260,6 +280,105 @@ function ArtistCard({ artist }: { artist: Artist }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Bio fetch status
+   ═══════════════════════════════════════════════════════════════════ */
+
+function FetchStatusBadge({ artist }: { artist: Artist }) {
+  if (artist.fetchStatus === "pending") {
+    return (
+      <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+        <Clock className="size-3" />
+        Waiting for bio
+      </Badge>
+    )
+  }
+  if (artist.fetchStatus === "unavailable") {
+    return (
+      <Badge
+        variant="outline"
+        className="gap-1 font-normal text-muted-foreground"
+        title="Instagram only shares bios of public Business/Creator accounts. Add a location manually."
+      >
+        <EyeOff className="size-3" />
+        No public bio · add location
+      </Badge>
+    )
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-destructive/30 font-normal text-destructive"
+      title={artist.fetchError ?? undefined}
+    >
+      <AlertCircle className="size-3" />
+      Bio fetch failed · add location
+    </Badge>
+  )
+}
+
+function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number }) {
+  const remaining = queue.status === "idle" ? pending : queue.remaining
+  if (remaining === 0 && queue.status !== "error") return null
+
+  let icon = <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber-500" />
+  let text: React.ReactNode
+
+  switch (queue.status) {
+    case "running":
+      text = (
+        <>
+          Fetching bios for <strong className="font-medium text-foreground">{remaining}</strong>{" "}
+          {remaining === 1 ? "artist" : "artists"}. They&apos;re already saved, so you can leave
+          this page and it picks up where it left off.
+          {queue.currentHandle && <> Last: @{queue.currentHandle}</>}
+        </>
+      )
+      break
+    case "paused":
+      icon = <PauseCircle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      text = (
+        <>
+          Instagram&apos;s hourly lookup limit was reached. {remaining === 1 ? "1 bio" : `${remaining} bios`} will resume
+          {queue.pausedUntil ? ` at ${formatResumeTime(queue.pausedUntil)}` : " shortly"}. Your
+          artists are saved.
+        </>
+      )
+      break
+    case "not_configured":
+      icon = <Clock className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      text = (
+        <>
+          {remaining} {remaining === 1 ? "artist is" : "artists are"} saved and waiting for
+          {remaining === 1 ? " its bio" : " their bios"}. {queue.message} Once it is, they&apos;ll
+          be fetched automatically.
+        </>
+      )
+      break
+    case "error":
+      icon = <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+      text = queue.message
+      break
+    default:
+      icon = <Clock className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      text = <>{remaining} {remaining === 1 ? "artist is" : "artists are"} waiting for a bio.</>
+  }
+
+  return (
+    <div
+      role="status"
+      className={`flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${
+        queue.status === "error"
+          ? "bg-destructive/10 text-destructive"
+          : "border border-amber-500/20 bg-amber-500/5 text-muted-foreground"
+      }`}
+    >
+      {icon}
+      <span>{text}</span>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    Page
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -268,6 +387,9 @@ export default function ArtistsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [search, setSearch] = useState("")
+  const { state: queue, kick, onArtistFetched } = useBioQueue()
+  // Bios that arrive while the list is still loading would otherwise be overwritten by it
+  const fetchedRef = useRef(new Map<string, Artist>())
 
   const fetchArtists = useCallback(() => {
     setLoading(true)
@@ -277,7 +399,13 @@ export default function ArtistsPage() {
         if (!res.ok) throw new Error("Failed to fetch artists")
         return res.json()
       })
-      .then((data: Artist[]) => setArtists(data))
+      .then((data: Artist[]) =>
+        setArtists(
+          data.map((a) =>
+            a.fetchStatus === "pending" ? (fetchedRef.current.get(a.id) ?? a) : a
+          )
+        )
+      )
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [])
@@ -285,6 +413,30 @@ export default function ArtistsPage() {
   useEffect(() => {
     fetchArtists()
   }, [fetchArtists])
+
+  // Swap in each artist as its bio arrives
+  useEffect(
+    () =>
+      onArtistFetched((updated) => {
+        fetchedRef.current.set(updated.id, updated as unknown as Artist)
+        setArtists((prev) =>
+          prev.map((a) => (a.id === updated.id ? (updated as unknown as Artist) : a))
+        )
+      }),
+    [onArtistFetched]
+  )
+
+  const pendingCount = useMemo(
+    () => artists.filter((a) => a.fetchStatus === "pending").length,
+    [artists]
+  )
+
+  // Artists may have been added since the queue last ran (e.g. in another tab).
+  // kick() is a no-op while the queue is already running.
+  const hasPending = pendingCount > 0
+  useEffect(() => {
+    if (hasPending) kick()
+  }, [hasPending, kick])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -352,6 +504,8 @@ export default function ArtistsPage() {
           </div>
         )}
       </div>
+
+      {!loading && !error && <QueueBanner queue={queue} pending={pendingCount} />}
 
       {/* ── Content ──────────────────────────────────────────────── */}
       {loading ? (

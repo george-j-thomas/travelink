@@ -22,7 +22,6 @@ model User {
   artists       UserArtist[]
   accounts      Account[]
   sessions      Session[]
-  importJobs    ImportJob[]
 
   @@map("users")
 }
@@ -66,12 +65,19 @@ model Artist {
   profilePicUrl    String?   @map("profile_pic_url")
   accountType      String    @default("unknown") @map("account_type")
   bioLastFetchedAt DateTime? @map("bio_last_fetched_at")
+  // Bio fetch queue: pending | fetched | unavailable (no public professional profile) | failed
+  fetchStatus      String    @default("pending") @map("fetch_status")
+  fetchAttempts    Int       @default(0) @map("fetch_attempts")
+  fetchError       String?   @map("fetch_error")
+  // Set when a request claims the artist, so concurrent tabs don't fetch it twice
+  fetchClaimedAt   DateTime? @map("fetch_claimed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   users            UserArtist[]
   locations        ArtistLocation[]
 
+  @@index([fetchStatus])
   @@map("artists")
 }
 
@@ -107,21 +113,3 @@ model ArtistLocation {
   @@map("artist_locations")
 }
 
-model ImportJob {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  status        String   @default("pending") // pending | processing | completed | failed | cancelled
-  source        String                       // upload | scrape
-  totalHandles  Int      @default(0) @map("total_handles")
-  completed     Int      @default(0)
-  failed        Int      @default(0)
-  skipped       Int      @default(0)
-  errors        String?  @db.Text            // JSON array of {handle, error}
-  handles       String?  @db.Text            // JSON array of all submitted handles
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("import_jobs")
-}

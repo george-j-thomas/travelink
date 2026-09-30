@@ -59,8 +59,18 @@ interface Artist {
   bio: string | null
   profilePicUrl: string | null
   accountType: string
+  fetchStatus: "pending" | "fetched" | "unavailable" | "failed"
+  fetchError: string | null
   notes: string | null
   locations: ArtistLocation[]
+}
+
+const MISSING_BIO_TEXT: Record<Artist["fetchStatus"], string> = {
+  pending: "Bio not fetched yet — it will be filled in automatically.",
+  fetched: "No bio available",
+  unavailable:
+    "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location below.",
+  failed: "Couldn't fetch this bio. Add a location below, or re-add the artist to try again.",
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -454,7 +464,12 @@ export default function ArtistDetailPage() {
                 {artist.bio}
               </p>
             ) : (
-              <p className="italic text-muted-foreground">No bio available</p>
+              <p
+                className="italic text-muted-foreground"
+                title={artist.fetchStatus === "failed" ? artist.fetchError ?? undefined : undefined}
+              >
+                {MISSING_BIO_TEXT[artist.fetchStatus] ?? MISSING_BIO_TEXT.fetched}
+              </p>
             )}
           </CardContent>
         </Card>

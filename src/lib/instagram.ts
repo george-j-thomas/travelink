@@ -1,5 +1,9 @@
-// Instagram Business Discovery API client
-// Fetches tattoo artist profile data (bio, name, profile pic) using a server-side token.
+// Instagram Business Discovery client (official Graph API, "Instagram API with
+// Facebook Login"). Reads public profile data of Business/Creator accounts by
+// username using a server-side token — no user cookie, no scraping.
+//
+// Personal accounts are not returned by the API. Rate limit is ~200 calls/hour
+// per token; usage headers are exposed so callers can pace themselves.
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,43 +14,55 @@ export interface InstagramProfile {
   name: string | null
   biography: string | null
   profilePictureUrl: string | null
-  accountType: "business" | "creator" | "unknown"
+  website: string | null
 }
 
-/** Raw shape returned by the Instagram Graph API business_discovery endpoint. */
-interface InstagramApiBusinessDiscovery {
-  biography?: string
-  username?: string
-  name?: string
-  profile_picture_url?: string
-  id?: string
+export interface BusinessDiscoveryResult {
+  /** null when the account doesn't exist or isn't a public Business/Creator account. */
+  profile: InstagramProfile | null
+  /** Highest rate-limit usage reported by Meta for this token, 0–100. */
+  usagePercent: number
 }
 
-interface InstagramApiSuccessResponse {
-  business_discovery: InstagramApiBusinessDiscovery
-  id: string
-}
-
-interface InstagramApiErrorDetail {
+interface GraphErrorDetail {
   message: string
-  type: string
+  type?: string
   code: number
   error_subcode?: number
-  fbtrace_id?: string
 }
 
-interface InstagramApiErrorResponse {
-  error: InstagramApiErrorDetail
+interface BusinessDiscoveryResponse {
+  business_discovery?: {
+    username?: string
+    name?: string
+    biography?: string
+    profile_picture_url?: string
+    website?: string
+  }
+  error?: GraphErrorDetail
 }
 
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 15 * 60_000
+
 export class RateLimitError extends Error {
-  constructor(message = "Instagram API rate limit exceeded") {
+  constructor(
+    message = "Instagram API rate limit exceeded",
+    public readonly retryAfterMs = DEFAULT_RATE_LIMIT_BACKOFF_MS
+  ) {
     super(message)
     this.name = "RateLimitError"
+  }
+}
+
+/** Missing, invalid or expired Business Discovery token — needs the operator to fix config. */
+export class BusinessDiscoveryConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BusinessDiscoveryConfigError"
   }
 }
 
@@ -54,50 +70,80 @@ export class RateLimitError extends Error {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const HANDLE_REGEX = /^[a-zA-Z0-9._]{1,30}$/
+const GRAPH_API_BASE = "https://graph.facebook.com/v25.0"
+const HANDLE_REGEX = /^[a-z0-9._]{1,30}$/
 
-function normalizeHandle(raw: string): string {
-  return raw.replace(/^@/, "").trim().toLowerCase()
+// https://developers.facebook.com/docs/graph-api/overview/rate-limiting
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613])
+const isBucRateLimit = (code: number) => code >= 80001 && code <= 80014
+// Token expired, revoked, or lacks permission
+const AUTH_ERROR_CODES = new Set([102, 190])
+const isPermissionError = (code: number) => code === 10 || (code >= 200 && code <= 299)
+// "Cannot find User" — no such account, or a personal (non-professional) account
+const USER_NOT_FOUND_SUBCODE = 2207013
+
+export function normalizeHandle(raw: string): string {
+  return raw.trim().replace(/^@+/, "").trim().toLowerCase()
 }
 
-function validateHandle(handle: string): void {
-  if (!HANDLE_REGEX.test(handle)) {
-    throw new Error(
-      `Invalid Instagram handle "${handle}". ` +
-        "Handles must be 1-30 characters and contain only letters, numbers, periods, or underscores.",
-    )
-  }
+export function isValidHandle(handle: string): boolean {
+  return HANDLE_REGEX.test(handle)
+}
+
+export function isBusinessDiscoveryConfigured(): boolean {
+  return Boolean(
+    process.env.INSTAGRAM_APP_ACCESS_TOKEN?.trim() && process.env.INSTAGRAM_APP_USER_ID?.trim()
+  )
 }
 
 function getConfig(): { accessToken: string; appUserId: string } {
-  const accessToken = process.env.INSTAGRAM_APP_ACCESS_TOKEN
-  const appUserId = process.env.INSTAGRAM_APP_USER_ID
-
-  if (!accessToken) {
-    throw new Error(
-      "Missing INSTAGRAM_APP_ACCESS_TOKEN environment variable. " +
-        "Set it to a valid long-lived token for the Instagram Business Discovery API.",
+  const accessToken = process.env.INSTAGRAM_APP_ACCESS_TOKEN?.trim()
+  const appUserId = process.env.INSTAGRAM_APP_USER_ID?.trim()
+  if (!accessToken || !appUserId) {
+    throw new BusinessDiscoveryConfigError(
+      "Instagram Business Discovery isn't set up: INSTAGRAM_APP_ACCESS_TOKEN and " +
+        "INSTAGRAM_APP_USER_ID must both be configured."
     )
   }
-  if (!appUserId) {
-    throw new Error(
-      "Missing INSTAGRAM_APP_USER_ID environment variable. " +
-        "Set it to the Instagram user ID associated with INSTAGRAM_APP_ACCESS_TOKEN.",
-    )
-  }
-
   return { accessToken, appUserId }
 }
 
-function isErrorResponse(
-  body: unknown,
-): body is InstagramApiErrorResponse {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    "error" in body &&
-    typeof (body as InstagramApiErrorResponse).error?.code === "number"
-  )
+interface UsageStats {
+  percent: number
+  regainAccessMs: number
+}
+
+/** Reads Meta's x-app-usage / x-business-use-case-usage headers. */
+export function parseUsageHeaders(headers: Headers): UsageStats {
+  let percent = 0
+  let regainAccessMs = 0
+
+  const consider = (entry: unknown) => {
+    if (!entry || typeof entry !== "object") return
+    const e = entry as Record<string, unknown>
+    for (const key of ["call_count", "total_time", "total_cputime"]) {
+      if (typeof e[key] === "number") percent = Math.max(percent, e[key] as number)
+    }
+    if (typeof e.estimated_time_to_regain_access === "number") {
+      regainAccessMs = Math.max(regainAccessMs, e.estimated_time_to_regain_access * 60_000)
+    }
+  }
+
+  try {
+    const app = headers.get("x-app-usage")
+    if (app) consider(JSON.parse(app))
+    const buc = headers.get("x-business-use-case-usage")
+    if (buc) {
+      const parsed = JSON.parse(buc) as Record<string, unknown>
+      for (const entries of Object.values(parsed)) {
+        if (Array.isArray(entries)) entries.forEach(consider)
+      }
+    }
+  } catch {
+    // Malformed usage headers shouldn't fail the request
+  }
+
+  return { percent: Math.min(percent, 100), regainAccessMs }
 }
 
 // ---------------------------------------------------------------------------
@@ -105,88 +151,69 @@ function isErrorResponse(
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch an Instagram business/creator account's public profile via the
- * Business Discovery API.
+ * Fetches a Business/Creator account's public profile via Business Discovery.
  *
- * Returns `null` when the handle does not exist (API error subcode 2207013
- * or error code 100).
- *
- * Returns a partial profile with `accountType: "unknown"` when the target is
- * a personal account (API error code 10 — permissions error).
- *
- * @throws {Error} on invalid handle or missing config
- * @throws {RateLimitError} on HTTP 429
+ * @throws {BusinessDiscoveryConfigError} token missing, expired, or lacking permission
+ * @throws {RateLimitError} Meta is throttling this token
  */
-export async function fetchArtistProfile(
-  handle: string,
-): Promise<InstagramProfile | null> {
+export async function fetchArtistProfile(handle: string): Promise<BusinessDiscoveryResult> {
   const normalized = normalizeHandle(handle)
-  validateHandle(normalized)
+  if (!isValidHandle(normalized)) {
+    return { profile: null, usagePercent: 0 }
+  }
 
   const { accessToken, appUserId } = getConfig()
 
-  const fields =
-    "business_discovery.fields(biography,username,name,profile_picture_url)"
-  const url = new URL(`https://graph.instagram.com/v21.0/${appUserId}`)
-  url.searchParams.set("fields", fields)
-  url.searchParams.set("business_discovery", `@${normalized}`)
+  const url = new URL(`${GRAPH_API_BASE}/${encodeURIComponent(appUserId)}`)
+  url.searchParams.set(
+    "fields",
+    `business_discovery.username(${normalized}){username,name,biography,profile_picture_url,website}`
+  )
   url.searchParams.set("access_token", accessToken)
 
-  const response = await fetch(url.toString())
-  const body: unknown = await response.json()
+  const response = await fetch(url, { cache: "no-store" })
+  const usage = parseUsageHeaders(response.headers)
+  const body = (await response.json().catch(() => ({}))) as BusinessDiscoveryResponse
 
-  // -- Rate limit --------------------------------------------------------
-  if (response.status === 429) {
-    const msg = isErrorResponse(body)
-      ? body.error.message
-      : "Rate limit exceeded"
-    throw new RateLimitError(`Instagram API rate limit: ${msg}`)
-  }
+  if (body.error || !response.ok) {
+    const err = body.error
+    const code = err?.code ?? 0
 
-  // -- Error responses ---------------------------------------------------
-  if (!response.ok) {
-    if (isErrorResponse(body)) {
-      const { code, error_subcode, message } = body.error
-
-      // Handle not found (subcode 2207013 or code 100)
-      if (error_subcode === 2207013 || code === 100) {
-        return null
-      }
-
-      // Personal account — not eligible for business discovery
-      if (code === 10) {
-        return {
-          username: normalized,
-          name: null,
-          biography: null,
-          profilePictureUrl: null,
-          accountType: "unknown",
-        }
-      }
-
-      throw new Error(
-        `Instagram API error (code ${code}): ${message}`,
+    if (response.status === 429 || RATE_LIMIT_CODES.has(code) || isBucRateLimit(code)) {
+      throw new RateLimitError(
+        `Instagram API rate limit: ${err?.message ?? `HTTP ${response.status}`}`,
+        usage.regainAccessMs || DEFAULT_RATE_LIMIT_BACKOFF_MS
       )
     }
-
+    if (err?.error_subcode === USER_NOT_FOUND_SUBCODE || code === 110) {
+      return { profile: null, usagePercent: usage.percent }
+    }
+    if (AUTH_ERROR_CODES.has(code) || isPermissionError(code)) {
+      throw new BusinessDiscoveryConfigError(
+        `Instagram API token was rejected (code ${code}): ${err?.message ?? "unknown error"}. ` +
+          "Generate a new long-lived token and update INSTAGRAM_APP_ACCESS_TOKEN."
+      )
+    }
     throw new Error(
-      `Instagram API request failed with HTTP ${response.status}`,
+      err
+        ? `Instagram API error (code ${code}): ${err.message}`
+        : `Instagram API request failed with HTTP ${response.status}`
     )
   }
 
-  // -- Success -----------------------------------------------------------
-  const data = body as InstagramApiSuccessResponse
-  const bd = data.business_discovery
+  const bd = body.business_discovery
+  if (!bd) {
+    return { profile: null, usagePercent: usage.percent }
+  }
 
   return {
-    username: bd.username ?? normalized,
-    name: bd.name ?? null,
-    biography: bd.biography ?? null,
-    profilePictureUrl: bd.profile_picture_url ?? null,
-    // Business Discovery API only works with business/creator accounts.
-    // If we got a successful response, it's one of those two — the API
-    // doesn't distinguish between them in this endpoint, so we default
-    // to "business".
-    accountType: "business",
+    profile: {
+      username: bd.username?.toLowerCase() ?? normalized,
+      name: bd.name || null,
+      biography: bd.biography || null,
+      profilePictureUrl: bd.profile_picture_url || null,
+      website: bd.website || null,
+    },
+    usagePercent: usage.percent,
   }
 }

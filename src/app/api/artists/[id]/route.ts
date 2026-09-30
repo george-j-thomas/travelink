@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { serializeArtist } from "@/lib/artist-dto"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -37,28 +38,7 @@ export async function GET(
 
     const { artist } = userArtist
 
-    return NextResponse.json({
-      id: artist.id,
-      instagramHandle: artist.instagramHandle,
-      displayName: artist.displayName,
-      bio: artist.bio,
-      profilePicUrl: artist.profilePicUrl,
-      accountType: artist.accountType,
-      notes: userArtist.notes,
-      locations: artist.locations.map((loc) => ({
-        id: loc.id,
-        locationName: loc.locationName,
-        city: loc.city,
-        country: loc.country,
-        lat: loc.lat,
-        lng: loc.lng,
-        isPrimary: loc.isPrimary,
-        isGuestSpot: loc.isGuestSpot,
-        startDate: loc.startDate,
-        endDate: loc.endDate,
-        source: loc.source,
-      })),
-    })
+    return NextResponse.json(serializeArtist(artist, userArtist.notes))
   } catch (err) {
     console.error(`GET /api/artists/${id} failed:`, err)
     return NextResponse.json(

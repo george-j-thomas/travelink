@@ -40,8 +40,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const text = await file.text()
-    const handles = parseFollowingExport(text)
-    return NextResponse.json({ handles, count: handles.length })
+    const accounts = parseFollowingExport(text).map((username) => ({
+      username,
+      fullName: null,
+      profilePicUrl: null,
+    }))
+    return NextResponse.json({ accounts, count: accounts.length })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to parse file" },

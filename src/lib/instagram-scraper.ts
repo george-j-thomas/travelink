@@ -286,8 +286,15 @@ async function fetchUserId(session: InstagramSession): Promise<string> {
   return String(userId)
 }
 
+/** An account from the user's following list. */
+export interface FollowingAccount {
+  username: string
+  fullName: string | null
+  profilePicUrl: string | null
+}
+
 interface FollowingPage {
-  usernames: string[]
+  accounts: FollowingAccount[]
   nextMaxId: string | null
 }
 
@@ -312,65 +319,20 @@ async function fetchFollowingPage(
     )
   }
 
-  const usernames: string[] = data.users
-    .map((u: { username?: string }) => u.username)
-    .filter((name: unknown): name is string => typeof name === "string")
+  const accounts: FollowingAccount[] = (data.users as Record<string, unknown>[])
+    .filter((u) => typeof u?.username === "string")
+    .map((u) => ({
+      username: String(u.username),
+      fullName: typeof u.full_name === "string" && u.full_name ? u.full_name : null,
+      profilePicUrl: typeof u.profile_pic_url === "string" ? u.profile_pic_url : null,
+    }))
 
   const nextMaxId: string | null =
     data.next_max_id !== undefined && data.next_max_id !== null && data.next_max_id !== ""
       ? String(data.next_max_id)
       : null
 
-  return { usernames, nextMaxId }
-}
-
-// ---------------------------------------------------------------------------
-// Profile scraping
-// ---------------------------------------------------------------------------
-
-export interface ScrapedProfile {
-  username: string
-  fullName: string | null
-  biography: string | null
-  profilePicUrl: string | null
-  isPrivate: boolean
-  isBusiness: boolean
-}
-
-/**
- * Fetches a single user's profile (bio, name, profile pic) via the private API.
- * Returns null if the user is not found.
- */
-export async function scrapeProfile(
-  handle: string,
-  credentials: ScraperCredentials
-): Promise<ScrapedProfile | null> {
-  const session = new InstagramSession(credentials)
-  const normalized = handle.replace(/^@/, "").trim().toLowerCase()
-
-  const url = `${BASE_URL}/users/web_profile_info/?username=${encodeURIComponent(normalized)}`
-  const res = await session.get(url, "web_profile_info")
-
-  if (res.status === 404) {
-    return null
-  }
-  await throwForStatus(res, "web_profile_info")
-
-  const data = await res.json()
-  const user = data?.data?.user
-
-  if (!user) {
-    return null
-  }
-
-  return {
-    username: user.username ?? normalized,
-    fullName: user.full_name ?? null,
-    biography: user.biography ?? null,
-    profilePicUrl: user.profile_pic_url_hd ?? user.profile_pic_url ?? null,
-    isPrivate: user.is_private ?? false,
-    isBusiness: user.is_business_account ?? false,
-  }
+  return { accounts, nextMaxId }
 }
 
 // ---------------------------------------------------------------------------
@@ -423,23 +385,23 @@ export async function searchUsers(
 
 /**
  * Scrapes the authenticated user's full following list from Instagram.
- * Returns a sorted, deduplicated, lowercased array of usernames.
+ * Returns accounts sorted and deduplicated by lowercased username.
  *
  * @param credentials - The `sessionid` cookie (and browser User-Agent) from the user's browser
  */
-export async function scrapeFollowing(credentials: ScraperCredentials): Promise<string[]> {
+export async function scrapeFollowing(credentials: ScraperCredentials): Promise<FollowingAccount[]> {
   const session = new InstagramSession(credentials)
   const userId = session.userId ?? (await fetchUserId(session))
 
-  const allUsernames: string[] = []
+  const all: FollowingAccount[] = []
   let nextMaxId: string | null = null
 
   do {
     const page = await fetchFollowingPage(session, userId, nextMaxId ?? undefined)
-    allUsernames.push(...page.usernames)
+    all.push(...page.accounts)
 
     // Safety cap — return what we have without error
-    if (allUsernames.length >= MAX_HANDLES) {
+    if (all.length >= MAX_HANDLES) {
       break
     }
 
@@ -451,18 +413,13 @@ export async function scrapeFollowing(credentials: ScraperCredentials): Promise<
     }
   } while (nextMaxId)
 
-  // Normalize, deduplicate, sort
-  const seen = new Set<string>()
-  const result: string[] = []
-
-  for (const username of allUsernames) {
-    const normalized = username.trim().toLowerCase()
-    if (normalized && !seen.has(normalized)) {
-      seen.add(normalized)
-      result.push(normalized)
+  const byUsername = new Map<string, FollowingAccount>()
+  for (const account of all) {
+    const username = account.username.trim().toLowerCase()
+    if (username && !byUsername.has(username)) {
+      byUsername.set(username, { ...account, username })
     }
   }
 
-  result.sort()
-  return result
+  return [...byUsername.values()].sort((a, b) => a.username.localeCompare(b.username))
 }

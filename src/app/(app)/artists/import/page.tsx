@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,10 +14,9 @@ import {
   Cookie,
   Download,
   Loader2,
+  RotateCcw,
   Search,
   Upload,
-  X,
-  XCircle,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,77 +32,64 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { useBioQueue } from "@/components/bio-queue"
 import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Step = "method" | "select" | "processing" | "complete"
+type Step = "method" | "select"
+type ImportSource = "upload" | "scrape"
 
-interface ImportJob {
-  id: string
-  status: "pending" | "processing" | "completed" | "failed" | "cancelled"
-  total: number
-  completed: number
-  failed: number
-  skipped: number
-  currentHandle: string | null
-  errors: { handle: string; error: string }[]
+interface FollowingAccount {
+  username: string
+  fullName: string | null
+  profilePicUrl: string | null
+}
+
+/** The fetched list + checkboxes, kept in this browser so nothing is lost on navigation. */
+interface ImportDraft {
+  source: ImportSource
+  accounts: FollowingAccount[]
+  selected: string[]
+  savedAt: number
 }
 
 /* ------------------------------------------------------------------ */
-/*  Constants                                                          */
+/*  Draft storage                                                      */
 /* ------------------------------------------------------------------ */
 
-// Consecutive network failures tolerated before the import loop gives up
-const MAX_NETWORK_FAILURES = 5
-const NETWORK_RETRY_MS = 10_000
+const DRAFT_KEY_PREFIX = "travelink.importDraft."
+const DRAFT_SAVE_DEBOUNCE_MS = 300
 
-interface ImportRun {
-  cancelled: boolean
-  wake: (() => void) | null
+function readDraft(userId: string): ImportDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY_PREFIX + userId)
+    if (!raw) return null
+    const draft = JSON.parse(raw) as ImportDraft
+    return Array.isArray(draft.accounts) && draft.accounts.length > 0 ? draft : null
+  } catch {
+    return null
+  }
 }
 
-interface NextResponse {
-  job: ImportJob
-  nextDelayMs: number | null
-  retry: boolean
+function writeDraft(userId: string, draft: ImportDraft | null) {
+  try {
+    if (draft) localStorage.setItem(DRAFT_KEY_PREFIX + userId, JSON.stringify(draft))
+    else localStorage.removeItem(DRAFT_KEY_PREFIX + userId)
+  } catch {
+    // Storage full or unavailable — the list just won't survive a reload
+  }
 }
 
-type ImportPhase = "processing" | "waiting" | "backoff"
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-// Must match the pacing in src/lib/import-runner.ts
-const SECONDS_PER_ARTIST_SCRAPE = 25
-const SECONDS_PER_ARTIST_API = 2
-
-/** Sleeps for `ms`, returning early if the run is cancelled. */
-function sleepUnlessCancelled(ms: number, run: ImportRun): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      run.wake = null
-      resolve()
-    }, ms)
-    run.wake = () => {
-      clearTimeout(timer)
-      run.wake = null
-      resolve()
-    }
+function formatSavedAt(timestamp: number): string {
+  return new Date(timestamp).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   })
-}
-
-function estimateTime(count: number, secondsPerArtist: number): string {
-  const totalSeconds = count * secondsPerArtist
-  if (totalSeconds < 60) return `${totalSeconds}s`
-  const minutes = Math.ceil(totalSeconds / 60)
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  const rem = minutes % 60
-  return rem ? `${hours}h ${rem}m` : `${hours}h`
 }
 
 /* ------------------------------------------------------------------ */
@@ -163,8 +150,12 @@ function InstructionStep({
 
 export default function ImportArtistsPage() {
   const router = useRouter()
+  const { data: session, status: sessionStatus } = useSession()
+  // Inside the (app) layout "unauthenticated" only happens with the dev auth bypass
+  const userId =
+    session?.user?.id ?? (sessionStatus === "unauthenticated" ? "dev-user" : null)
+  const { kick: startBioQueue } = useBioQueue()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const runRef = useRef<ImportRun | null>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
   // -- Step state
@@ -179,75 +170,22 @@ export default function ImportArtistsPage() {
   } = useInstagramCookie()
   // A freshly pasted cookie wins over the one remembered in this browser
   const cookie = sessionCookie.trim() || savedCookie
-  const [importSource, setImportSource] = useState<"upload" | "scrape">("upload")
   const [isUploading, setIsUploading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
 
   // -- Select state
-  const [allHandles, setAllHandles] = useState<string[]>([])
+  const [source, setSource] = useState<ImportSource>("upload")
+  const [accounts, setAccounts] = useState<FollowingAccount[]>([])
   const [trackedHandles, setTrackedHandles] = useState<Set<string>>(new Set())
   const [selectedHandles, setSelectedHandles] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState("")
-
-  // -- Processing state
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [job, setJob] = useState<ImportJob | null>(null)
-  const [phase, setPhase] = useState<ImportPhase>("processing")
-
-  // -- Complete state
-  const [finalJob, setFinalJob] = useState<ImportJob | null>(null)
-  const [showErrors, setShowErrors] = useState(false)
-
-  /* ---------------------------------------------------------------- */
-  /*  Cleanup                                                          */
-  /* ---------------------------------------------------------------- */
-
-  useEffect(() => {
-    return () => stopRun()
-  }, [])
-
-  // The import is driven by this tab — warn before closing it mid-import
-  useEffect(() => {
-    if (step !== "processing") return
-    function onBeforeUnload(e: BeforeUnloadEvent) {
-      e.preventDefault()
-    }
-    window.addEventListener("beforeunload", onBeforeUnload)
-    return () => window.removeEventListener("beforeunload", onBeforeUnload)
-  }, [step])
-
-  function stopRun() {
-    const run = runRef.current
-    if (run) {
-      run.cancelled = true
-      run.wake?.()
-      runRef.current = null
-    }
-  }
-
-  /* ---------------------------------------------------------------- */
-  /*  Reset                                                            */
-  /* ---------------------------------------------------------------- */
-
-  function resetAll() {
-    stopRun()
-    setStep("method")
-    setSessionCookie("")
-    setIsUploading(false)
-    setIsFetching(false)
-    setError(null)
-    setIsDragOver(false)
-    setAllHandles([])
-    setTrackedHandles(new Set())
-    setSelectedHandles(new Set())
-    setSearchQuery("")
-    setJobId(null)
-    setJob(null)
-    setFinalJob(null)
-    setShowErrors(false)
-  }
+  const [hideTracked, setHideTracked] = useState(false)
+  const [restoredAt, setRestoredAt] = useState<number | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const restoreCheckedRef = useRef(false)
 
   /* ---------------------------------------------------------------- */
   /*  Fetch existing artists for cross-reference                       */
@@ -261,33 +199,73 @@ export default function ImportArtistsPage() {
         return new Set()
       }
       if (!res.ok) return new Set()
-      const data = await res.json()
-      const handles = new Set<string>(
-        (data.artists ?? data ?? []).map(
-          (a: { instagramHandle: string }) =>
-            a.instagramHandle.toLowerCase()
-        )
-      )
-      return handles
+      const data = (await res.json()) as { instagramHandle: string }[]
+      return new Set(data.map((a) => a.instagramHandle.toLowerCase()))
     } catch {
       return new Set()
     }
   }, [router])
 
   /* ---------------------------------------------------------------- */
+  /*  Draft: restore once, then autosave                               */
+  /* ---------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!userId || restoreCheckedRef.current) return
+    restoreCheckedRef.current = true
+    const draft = readDraft(userId)
+    if (!draft) return
+
+    void fetchTrackedHandles().then((tracked) => {
+      setTrackedHandles(tracked)
+      setSource(draft.source)
+      setAccounts(draft.accounts)
+      setSelectedHandles(
+        new Set(draft.selected.filter((h) => !tracked.has(h.toLowerCase())))
+      )
+      setRestoredAt(draft.savedAt)
+      setStep("select")
+    })
+  }, [userId, fetchTrackedHandles])
+
+  useEffect(() => {
+    if (!userId || step !== "select" || accounts.length === 0) return
+    const timer = setTimeout(() => {
+      writeDraft(userId, {
+        source,
+        accounts,
+        selected: [...selectedHandles],
+        savedAt: Date.now(),
+      })
+    }, DRAFT_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [userId, step, source, accounts, selectedHandles])
+
+  function startOver() {
+    if (userId) writeDraft(userId, null)
+    setStep("method")
+    setAccounts([])
+    setSelectedHandles(new Set())
+    setTrackedHandles(new Set())
+    setSearchQuery("")
+    setRestoredAt(null)
+    setNotice(null)
+    setError(null)
+  }
+
+  /* ---------------------------------------------------------------- */
   /*  Transition to Select step                                        */
   /* ---------------------------------------------------------------- */
 
-  async function goToSelect(handles: string[]) {
+  async function goToSelect(list: FollowingAccount[], from: ImportSource) {
     const tracked = await fetchTrackedHandles()
     setTrackedHandles(tracked)
-    setAllHandles(handles)
-
-    // Pre-select handles that aren't already tracked
-    const preSelected = new Set<string>(
-      handles.filter((h) => !tracked.has(h.toLowerCase()))
-    )
-    setSelectedHandles(preSelected)
+    setSource(from)
+    setAccounts(list)
+    // Nothing pre-selected: most accounts people follow aren't tattoo artists
+    setSelectedHandles(new Set())
+    setRestoredAt(null)
+    setNotice(null)
     setStep("select")
   }
 
@@ -331,8 +309,7 @@ export default function ImportArtistsPage() {
         return
       }
 
-      setImportSource("upload")
-      await goToSelect(data.handles as string[])
+      await goToSelect(data.accounts as FollowingAccount[], "upload")
     } catch {
       setError("Network error — check your connection and try again")
     } finally {
@@ -409,8 +386,7 @@ export default function ImportArtistsPage() {
 
       saveCookie(cookie)
       setSessionCookie("")
-      setImportSource("scrape")
-      await goToSelect(data.handles as string[])
+      await goToSelect(data.accounts as FollowingAccount[], "scrape")
     } catch {
       setError("Network error — check your connection and try again")
     } finally {
@@ -422,15 +398,32 @@ export default function ImportArtistsPage() {
   /*  Selection helpers                                                 */
   /* ---------------------------------------------------------------- */
 
-  const filteredHandles = allHandles.filter((h) =>
-    h.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredAccounts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase().replace(/^@/, "")
+    return accounts.filter((a) => {
+      if (hideTracked && trackedHandles.has(a.username.toLowerCase())) return false
+      if (!q) return true
+      return (
+        a.username.toLowerCase().includes(q) ||
+        (a.fullName?.toLowerCase().includes(q) ?? false)
+      )
+    })
+  }, [accounts, searchQuery, hideTracked, trackedHandles])
 
-  const selectableHandles = filteredHandles.filter(
-    (h) => !trackedHandles.has(h.toLowerCase())
-  )
+  const selectableHandles = filteredAccounts
+    .map((a) => a.username)
+    .filter((h) => !trackedHandles.has(h.toLowerCase()))
+
+  const allVisibleSelected =
+    selectableHandles.length > 0 &&
+    selectableHandles.every((h) => selectedHandles.has(h))
+
+  const trackedCount = accounts.filter((a) =>
+    trackedHandles.has(a.username.toLowerCase())
+  ).length
 
   function toggleHandle(handle: string) {
+    setNotice(null)
     setSelectedHandles((prev) => {
       const next = new Set(prev)
       if (next.has(handle)) {
@@ -442,105 +435,36 @@ export default function ImportArtistsPage() {
     })
   }
 
-  function toggleAll() {
-    if (selectedHandles.size === selectableHandles.length) {
-      setSelectedHandles(new Set())
-    } else {
-      setSelectedHandles(new Set(selectableHandles))
-    }
+  function toggleAllVisible() {
+    setSelectedHandles((prev) => {
+      const next = new Set(prev)
+      if (allVisibleSelected) selectableHandles.forEach((h) => next.delete(h))
+      else selectableHandles.forEach((h) => next.add(h))
+      return next
+    })
   }
 
   /* ---------------------------------------------------------------- */
-  /*  Start import                                                      */
+  /*  Save selection — no Instagram calls, bios are fetched afterwards  */
   /* ---------------------------------------------------------------- */
 
-  async function startImport() {
+  async function saveSelected() {
     setError(null)
+    setNotice(null)
 
-    if (selectedHandles.size === 0) {
-      setError("Please select at least one handle to import")
+    const chosen = accounts.filter((a) => selectedHandles.has(a.username))
+    if (chosen.length === 0) {
+      setError("Select at least one account to add")
       return
     }
 
+    setIsSaving(true)
     try {
-      const res = await fetch("/api/import/start", {
+      const res = await fetch("/api/artists/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          handles: Array.from(selectedHandles),
-          source: importSource,
-        }),
+        body: JSON.stringify({ accounts: chosen }),
       })
-
-      if (res.status === 401) {
-        router.push("/login")
-        return
-      }
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(
-          res.status === 409
-            ? "An import is already in progress"
-            : data.error || "Failed to start import"
-        )
-        return
-      }
-
-      const id = data.jobId as string
-      setJobId(id)
-      setJob({
-        id,
-        status: "processing",
-        total: selectedHandles.size,
-        completed: 0,
-        failed: 0,
-        skipped: 0,
-        currentHandle: null,
-        errors: [],
-      })
-      setPhase("processing")
-      setStep("processing")
-
-      void runImport(id, cookie)
-    } catch {
-      setError("Network error — check your connection and try again")
-    }
-  }
-
-  /* ---------------------------------------------------------------- */
-  /*  Drive the import: one artist per request, paced by the server     */
-  /* ---------------------------------------------------------------- */
-
-  async function runImport(id: string, cookie: string) {
-    stopRun()
-    const run: ImportRun = { cancelled: false, wake: null }
-    runRef.current = run
-
-    let retry = false
-    let networkFailures = 0
-
-    while (!run.cancelled) {
-      setPhase(retry ? "backoff" : "processing")
-
-      let res: Response
-      try {
-        res = await fetch(`/api/import/${id}/next`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: cookie || undefined, retry }),
-        })
-      } catch {
-        networkFailures++
-        if (networkFailures >= MAX_NETWORK_FAILURES) {
-          setError("Lost connection to the server — the import is paused. Resume to continue.")
-          return
-        }
-        await sleepUnlessCancelled(NETWORK_RETRY_MS, run)
-        continue
-      }
-      if (run.cancelled) return
 
       if (res.status === 401) {
         router.push("/login")
@@ -549,45 +473,26 @@ export default function ImportArtistsPage() {
 
       const data = await res.json().catch(() => null)
       if (!res.ok || !data) {
-        setError(data?.error || "Import paused after a server error. Resume to continue.")
+        setError(
+          (data?.error || "Couldn't save your selection") +
+            " — it's still selected here, so you can try again."
+        )
         return
       }
 
-      networkFailures = 0
-      const { job: latest, nextDelayMs, retry: shouldRetry } = data as NextResponse
-      setJob(latest)
-
-      if (nextDelayMs === null) {
-        runRef.current = null
-        setFinalJob(latest)
-        setStep("complete")
-        return
-      }
-
-      retry = shouldRetry
-      if (nextDelayMs > 0) {
-        setPhase(shouldRetry ? "backoff" : "waiting")
-        await sleepUnlessCancelled(nextDelayMs, run)
-      }
-    }
-  }
-
-  /* ---------------------------------------------------------------- */
-  /*  Cancel import                                                     */
-  /* ---------------------------------------------------------------- */
-
-  async function cancelImport() {
-    if (!jobId) return
-    stopRun()
-
-    try {
-      const res = await fetch(`/api/import/${jobId}`, { method: "DELETE" })
-      const data = res.ok ? ((await res.json()) as ImportJob) : null
-      setFinalJob(data ?? (job ? { ...job, status: "cancelled" } : null))
+      const saved = new Set(chosen.map((a) => a.username.toLowerCase()))
+      setTrackedHandles((prev) => new Set([...prev, ...saved]))
+      setSelectedHandles(new Set())
+      setNotice(
+        `Saved ${chosen.length} ${chosen.length === 1 ? "artist" : "artists"}. ` +
+          "Their bios are being fetched in the background — keep selecting, or head to your artists."
+      )
+      startBioQueue()
     } catch {
-      setFinalJob(job ? { ...job, status: "cancelled" } : null)
+      setError("Network error — your selection is still here, so you can try again.")
+    } finally {
+      setIsSaving(false)
     }
-    setStep("complete")
   }
 
   /* ---------------------------------------------------------------- */
@@ -605,7 +510,7 @@ export default function ImportArtistsPage() {
         Artists
       </Link>
 
-      {/* ============================================================ */}
+            {/* ============================================================ */}
       {/*  Step 1 — Choose Method                                       */}
       {/* ============================================================ */}
       {step === "method" && (
@@ -711,7 +616,8 @@ export default function ImportArtistsPage() {
                   Paste Session Cookie
                 </CardTitle>
                 <CardDescription className="text-[13px] leading-relaxed">
-                  Copy your Instagram session cookie for instant import
+                  Pull your following list with your Instagram session cookie.
+                  It&apos;s only used for this list, never for fetching bios
                 </CardDescription>
               </CardHeader>
 
@@ -790,34 +696,67 @@ export default function ImportArtistsPage() {
         </>
       )}
 
+
       {/* ============================================================ */}
-      {/*  Step 2 — Select Handles                                      */}
+      {/*  Step 2 — Select accounts                                     */}
       {/* ============================================================ */}
       {step === "select" && (
         <Card className="border-border/50 shadow-2xl shadow-black/25">
           <CardHeader>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle className="text-xl font-semibold tracking-tight">
-                  Import Artists
+                  Pick your artists
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Found{" "}
                   <span className="font-medium text-foreground">
-                    {allHandles.length}
+                    {accounts.length}
                   </span>{" "}
                   accounts you follow
+                  {trackedCount > 0 && <> · {trackedCount} already added</>}
+                  {restoredAt && (
+                    <> · list from {formatSavedAt(restoredAt)}</>
+                  )}
                 </CardDescription>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startOver}
+                className="shrink-0 text-muted-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Start over
+              </Button>
             </div>
           </CardHeader>
 
           <CardContent className="grid gap-4">
-            {/* Error banner */}
+            <p className="text-xs text-muted-foreground">
+              Your list and checkboxes are kept in this browser, so you can
+              leave and come back. Added artists are saved right away; their
+              bios are fetched afterwards.
+            </p>
+
             {error && (
               <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {notice && (
+              <div
+                role="status"
+                className="flex items-start gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+              >
+                <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {notice}{" "}
+                  <Link href="/artists" className="font-medium underline underline-offset-2">
+                    View artists
+                  </Link>
+                </span>
               </div>
             )}
 
@@ -827,44 +766,54 @@ export default function ImportArtistsPage() {
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
                 <Input
                   type="text"
-                  placeholder="Filter handles…"
+                  placeholder="Filter by handle or name…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8"
+                  aria-label="Filter accounts"
                 />
               </div>
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={hideTracked}
+                  onChange={(e) => setHideTracked(e.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-amber-500"
+                />
+                Hide added
+              </label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={toggleAll}
+                onClick={toggleAllVisible}
+                disabled={selectableHandles.length === 0}
                 className="shrink-0"
               >
-                {selectedHandles.size === selectableHandles.length &&
-                selectableHandles.length > 0
-                  ? "Deselect All"
-                  : "Select All"}
+                {allVisibleSelected ? "Deselect shown" : "Select shown"}
               </Button>
             </div>
 
-            {/* Handle list */}
+            {/* Account list */}
             <div
               className="max-h-[420px] overflow-y-auto rounded-lg border border-border/40 divide-y divide-border/30"
               role="list"
-              aria-label="Instagram handles"
+              aria-label="Accounts you follow"
             >
-              {filteredHandles.length === 0 ? (
+              {filteredAccounts.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  No handles match your search
+                  No accounts match your filter
                 </p>
               ) : (
-                filteredHandles.map((handle) => {
+                filteredAccounts.map((account) => {
+                  const handle = account.username
                   const isTracked = trackedHandles.has(handle.toLowerCase())
                   const isSelected = selectedHandles.has(handle)
 
                   return (
                     <label
                       key={handle}
+                      role="listitem"
                       className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors ${
                         isTracked
                           ? "opacity-50"
@@ -875,27 +824,27 @@ export default function ImportArtistsPage() {
                     >
                       <input
                         type="checkbox"
-                        checked={isSelected}
+                        checked={isTracked || isSelected}
                         disabled={isTracked}
                         onChange={() => toggleHandle(handle)}
-                        className="h-4 w-4 rounded border-border accent-amber-500"
+                        className="h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+                        aria-label={`@${handle}`}
                       />
-                      <span
-                        className={`text-sm ${
-                          isTracked
-                            ? "text-muted-foreground line-through"
-                            : "text-foreground"
-                        }`}
-                      >
-                        @{handle}
+                      <span className="min-w-0 truncate text-sm">
+                        <span className="text-foreground">@{handle}</span>
+                        {account.fullName && (
+                          <span className="ml-2 text-muted-foreground">
+                            {account.fullName}
+                          </span>
+                        )}
                       </span>
                       {isTracked && (
                         <Badge
                           variant="secondary"
-                          className="ml-auto text-[11px]"
+                          className="ml-auto shrink-0 text-[11px]"
                         >
                           <Check className="mr-1 h-3 w-3" />
-                          Already tracked
+                          Added
                         </Badge>
                       )}
                     </label>
@@ -905,281 +854,26 @@ export default function ImportArtistsPage() {
             </div>
           </CardContent>
 
-          {/* Bottom sticky bar */}
           <CardFooter className="flex-col gap-3 border-t border-border/30 bg-card/80 pt-4 sm:flex-row">
+            <span className="text-sm text-muted-foreground sm:mr-auto">
+              <span className="font-medium text-foreground">
+                {selectedHandles.size}
+              </span>{" "}
+              selected
+            </span>
             <Button
-              variant="outline"
-              onClick={() => {
-                setStep("method")
-                setError(null)
-              }}
-              className="w-full sm:w-auto"
+              onClick={saveSelected}
+              disabled={selectedHandles.size === 0 || isSaving}
+              className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400 sm:w-auto"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </Button>
-            <div className="flex flex-1 items-center justify-between gap-3 sm:justify-end">
-              <span className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {selectedHandles.size}
-                </span>{" "}
-                selected
-              </span>
-              <Button
-                onClick={startImport}
-                disabled={selectedHandles.size === 0}
-                className="bg-amber-500 font-medium text-black hover:bg-amber-400"
-              >
-                Import Selected
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
-      )}
-
-      {/* ============================================================ */}
-      {/*  Step 3 — Processing                                          */}
-      {/* ============================================================ */}
-      {step === "processing" && job && (
-        <Card className="border-border/50 shadow-2xl shadow-black/25">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold tracking-tight">
-              Importing Artists
-            </CardTitle>
-            <CardDescription>
-              {job.total} artists × ~{cookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API}s each ≈{" "}
-              {estimateTime(
-                job.total,
-                cookie ? SECONDS_PER_ARTIST_SCRAPE : SECONDS_PER_ARTIST_API
-              )}
-              {cookie && " — paced slowly to protect your Instagram account"}.
-              Keep this tab open until it finishes.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="grid gap-5">
-            {/* Progress bar */}
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {job.completed + job.failed + job.skipped} of {job.total}
-                </span>
-                <span className="font-medium text-foreground">
-                  {job.total > 0
-                    ? Math.round(
-                        ((job.completed + job.failed + job.skipped) /
-                          job.total) *
-                          100
-                      )
-                    : 0}
-                  %
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-amber-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      job.total > 0
-                        ? ((job.completed + job.failed + job.skipped) /
-                            job.total) *
-                          100
-                        : 0
-                    }%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Current activity */}
-            <div className="flex items-center gap-2.5 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-              <span className="text-muted-foreground">
-                {phase === "backoff"
-                  ? "Instagram asked us to slow down — retrying in a few minutes…"
-                  : phase === "waiting"
-                    ? "Waiting before the next artist…"
-                    : "Processing next artist…"}
-                {job.currentHandle && phase !== "backoff" && (
-                  <>
-                    {" "}Last:{" "}
-                    <span className="font-medium text-foreground">
-                      @{job.currentHandle}
-                    </span>
-                  </>
-                )}
-              </span>
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <Separator />
-
-            {/* Stats row */}
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Imported:{" "}
-                <span className="font-medium text-foreground">
-                  {job.completed}
-                </span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Skipped:{" "}
-                <span className="font-medium text-foreground">
-                  {job.skipped}
-                </span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-red-500" />
-                Failed:{" "}
-                <span className="font-medium text-foreground">
-                  {job.failed}
-                </span>
-              </span>
-            </div>
-          </CardContent>
-
-          <CardFooter className="gap-2">
-            {error && jobId && (
-              <Button
-                onClick={() => {
-                  setError(null)
-                  void runImport(jobId, cookie)
-                }}
-                className="bg-amber-500 font-medium text-black hover:bg-amber-400"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-                Resume
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={cancelImport}
-              className="border-destructive/40 text-destructive hover:bg-destructive/10"
-            >
-              <X className="h-3.5 w-3.5" />
-              Cancel Import
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {/* ============================================================ */}
-      {/*  Step 4 — Complete                                             */}
-      {/* ============================================================ */}
-      {step === "complete" && finalJob && (
-        <Card className="border-border/50 shadow-2xl shadow-black/25">
-          <CardHeader>
-            <div className="flex items-center gap-2.5">
-              {finalJob.status === "completed" ? (
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15">
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
-                </span>
+              {isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10">
-                  <XCircle className="h-3.5 w-3.5 text-amber-400" />
-                </span>
+                <ArrowRight className="h-3.5 w-3.5" />
               )}
-              <CardTitle className="text-xl font-semibold tracking-tight">
-                {finalJob.status === "completed"
-                  ? "Import Complete"
-                  : finalJob.status === "failed"
-                    ? "Import Stopped"
-                    : "Import Cancelled"}
-              </CardTitle>
-            </div>
-          </CardHeader>
-
-          <CardContent className="grid gap-5">
-            {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-emerald-500/10 px-4 py-3 text-center">
-                <p className="text-2xl font-semibold text-emerald-400">
-                  {finalJob.completed}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Imported
-                </p>
-              </div>
-              <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-center">
-                <p className="text-2xl font-semibold text-amber-400">
-                  {finalJob.skipped}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Skipped
-                </p>
-              </div>
-              <div className="rounded-lg bg-red-500/10 px-4 py-3 text-center">
-                <p className="text-2xl font-semibold text-red-400">
-                  {finalJob.failed}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Failed
-                </p>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground">
-              {finalJob.completed} artist{finalJob.completed !== 1 ? "s" : ""}{" "}
-              imported, {finalJob.skipped} already tracked, {finalJob.failed}{" "}
-              failed
-            </p>
-
-            {/* Errors section */}
-            {finalJob.errors.length > 0 && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowErrors(!showErrors)}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive transition-colors hover:text-destructive/80"
-                >
-                  {showErrors ? (
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  )}
-                  {finalJob.errors.length} failed handle
-                  {finalJob.errors.length !== 1 ? "s" : ""}
-                </button>
-
-                {showErrors && (
-                  <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-border/40 divide-y divide-border/30">
-                    {finalJob.errors.map(({ handle, error: errMsg }) => (
-                      <div
-                        key={handle}
-                        className="flex items-start gap-2.5 px-4 py-2.5 text-sm"
-                      >
-                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
-                        <div className="min-w-0">
-                          <span className="font-medium">@{handle}</span>
-                          <p className="text-muted-foreground">{errMsg}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-
-          <CardFooter className="gap-3">
-            <Button variant="outline" onClick={resetAll}>
-              Import More
-            </Button>
-            <Button
-              className="ml-auto bg-amber-500 font-medium text-black hover:bg-amber-400"
-              render={<Link href="/artists" />}
-            >
-              View Your Artists
-              <ArrowRight className="h-3.5 w-3.5" />
+              {isSaving
+                ? "Saving…"
+                : `Add ${selectedHandles.size || ""} to my artists`.replace("  ", " ")}
             </Button>
           </CardFooter>
         </Card>

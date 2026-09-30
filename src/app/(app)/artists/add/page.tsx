@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useBioQueue } from "@/components/bio-queue"
 import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
@@ -66,9 +67,10 @@ interface ArtistResult {
     bio: string | null
     profilePicUrl: string | null
     accountType: string
+    fetchStatus: "pending" | "fetched" | "unavailable" | "failed"
+    locations: ArtistLocation[]
   }
-  locations: ArtistLocation[]
-  status: "created" | "existing" | "updated"
+  status: "created" | "existing"
   warnings: string[]
 }
 
@@ -130,6 +132,7 @@ function formatLocation(loc: ArtistLocation): string {
 
 export default function AddArtistPage() {
   const router = useRouter()
+  const { kick: startBioQueue } = useBioQueue()
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -275,7 +278,7 @@ export default function AddArtistPage() {
     cancelPendingSearch()
     setOpen(false)
     setHandle(user.username)
-    void addHandle(user.username)
+    void addHandle(user.username, user)
   }
 
   function onHandleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -308,7 +311,7 @@ export default function AddArtistPage() {
     void addHandle(stripAt(handle))
   }
 
-  async function addHandle(cleaned: string) {
+  async function addHandle(cleaned: string, known?: SearchUser) {
     setHandle(cleaned)
 
     const validationError = validateHandle(cleaned)
@@ -334,7 +337,12 @@ export default function AddArtistPage() {
       const res = await fetch("/api/artists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle: cleaned, sessionId: cookie || undefined }),
+        // Name + picture from search fill in the card until the bio is fetched
+        body: JSON.stringify({
+          handle: cleaned,
+          fullName: known?.fullName ?? undefined,
+          profilePicUrl: known?.profilePicUrl ?? undefined,
+        }),
       })
 
       clearTimer()
@@ -347,15 +355,13 @@ export default function AddArtistPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        if (data.code === "instagram_session") clearCookie()
-        setError(
-          res.status === 429
-            ? "Rate limited — please try again in a few minutes"
-            : data.error || "Something went wrong. Please try again."
-        )
+        setError(data.error || "Something went wrong. Please try again.")
         setView("idle")
         return
       }
+
+      // Saved but the bio couldn't be fetched yet — let the queue retry it
+      if ((data as ArtistResult).artist.fetchStatus === "pending") startBioQueue()
 
       // Flash all steps as complete before showing result
       setStep(STEPS.length)
@@ -441,14 +447,14 @@ export default function AddArtistPage() {
             </div>
 
             {/* Locations */}
-            {result.locations.length > 0 && (
+            {result.artist.locations.length > 0 && (
               <div className="grid gap-2.5">
                 <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <MapPin className="h-3 w-3" />
                   Locations
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {result.locations.map((loc) => (
+                  {result.artist.locations.map((loc) => (
                     <Badge
                       key={loc.id}
                       variant="secondary"
@@ -485,6 +491,7 @@ export default function AddArtistPage() {
             </Button>
             <Button
               className="ml-auto"
+              nativeButton={false}
               render={<Link href="/artists" />}
             >
               View artists
@@ -722,9 +729,8 @@ export default function AddArtistPage() {
                   <code className="rounded bg-muted px-1 py-0.5 text-foreground">
                     sessionid
                   </code>{" "}
-                  cookie (instagram.com → F12 → Application → Cookies). It
-                  also lets Travelink read artist bios, and is remembered in
-                  this browser only.
+                  cookie (instagram.com → F12 → Application → Cookies). It&apos;s
+                  only used for search, and is remembered in this browser only.
                 </p>
                 <form
                   onSubmit={(e) => {

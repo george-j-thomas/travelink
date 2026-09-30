@@ -1,286 +1,366 @@
+// Artist pipeline.
+//
+// Adding artists and fetching their bios are separate steps:
+//   1. trackArtists() saves stub Artist rows + UserArtist links immediately — no
+//      external calls, so a selection is never lost to a rate limit.
+//   2. fetchArtistBio() fills a stub in later: Business Discovery → Claude bio
+//      parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
+//      the browser-driven loop can stop and resume at any time.
+
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
-import { fetchArtistProfile, RateLimitError } from "@/lib/instagram"
-import { scrapeProfile, type ScraperCredentials } from "@/lib/instagram-scraper"
+import {
+  BusinessDiscoveryConfigError,
+  fetchArtistProfile,
+  isBusinessDiscoveryConfigured,
+  isValidHandle,
+  normalizeHandle,
+  RateLimitError,
+} from "@/lib/instagram"
 import { parseBioLocations } from "@/lib/bio-parser"
 import { geocodeLocation } from "@/lib/geocoding"
+import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
 
-export interface PipelineResult {
-  artist: {
-    id: string
-    instagramHandle: string
-    displayName: string | null
-    bio: string | null
-    profilePicUrl: string | null
-    accountType: string
-  }
-  locations: {
-    id: string
-    locationName: string
-    city: string | null
-    country: string | null
-    lat: number | null
-    lng: number | null
-    isPrimary: boolean
-    isGuestSpot: boolean
-    startDate: Date | null
-    endDate: Date | null
-    source: string
-  }[]
-  status: "created" | "existing" | "updated"
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+export const MAX_TRACK_BATCH = 2000
+const MAX_FETCH_ATTEMPTS = 3
+/** A claim older than this is assumed abandoned (request timed out mid-fetch). */
+const CLAIM_TTL_MS = 3 * 60_000
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Optional metadata already known from the following list or search results. */
+export interface ArtistHint {
+  username: string
+  fullName?: string | null
+  profilePicUrl?: string | null
+}
+
+export interface TrackResult {
+  added: number
+  alreadyTracked: number
+  invalid: string[]
+}
+
+export type FetchOutcome = "fetched" | "unavailable" | "retry" | "failed" | "skipped"
+
+export interface FetchBioResult {
+  outcome: FetchOutcome
+  usagePercent: number
   warnings: string[]
 }
 
-function normalizeHandle(handle: string): string {
-  return handle.replace(/^@/, "").trim().toLowerCase()
+export interface AddArtistResult {
+  artist: SerializedArtist
+  status: "created" | "existing"
+  warnings: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const cleanText = (value: string | null | undefined, max: number) => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed.slice(0, max) : null
+}
+
+function cleanUrl(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+function claimableWhere(now: Date): Prisma.ArtistWhereInput {
+  return {
+    fetchStatus: "pending",
+    OR: [{ fetchClaimedAt: null }, { fetchClaimedAt: { lt: new Date(now.getTime() - CLAIM_TTL_MS) } }],
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — save selections
+// ---------------------------------------------------------------------------
+
+/**
+ * Saves handles to the user's list as stub artists. Fast and idempotent: no
+ * Instagram, Claude, or Mapbox calls.
+ */
+export async function trackArtists(userId: string, accounts: ArtistHint[]): Promise<TrackResult> {
+  const invalid: string[] = []
+  const byHandle = new Map<string, ArtistHint>()
+
+  for (const account of accounts.slice(0, MAX_TRACK_BATCH)) {
+    const handle = normalizeHandle(account.username)
+    if (!isValidHandle(handle)) {
+      invalid.push(account.username)
+      continue
+    }
+    if (!byHandle.has(handle)) byHandle.set(handle, account)
+  }
+
+  const handles = [...byHandle.keys()]
+  if (handles.length === 0) return { added: 0, alreadyTracked: 0, invalid }
+
+  await prisma.artist.createMany({
+    data: handles.map((handle) => {
+      const hint = byHandle.get(handle)!
+      return {
+        instagramHandle: handle,
+        displayName: cleanText(hint.fullName, 200),
+        profilePicUrl: cleanUrl(hint.profilePicUrl),
+      }
+    }),
+    skipDuplicates: true,
+  })
+
+  const artists = await prisma.artist.findMany({
+    where: { instagramHandle: { in: handles } },
+    select: { id: true },
+  })
+
+  const { count: added } = await prisma.userArtist.createMany({
+    data: artists.map((a) => ({ userId, artistId: a.id })),
+    skipDuplicates: true,
+  })
+
+  return { added, alreadyTracked: artists.length - added, invalid }
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — fetch bios
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches, parses, and geocodes one pending artist's bio.
+ *
+ * External calls are intentionally NOT wrapped in a Prisma transaction — they
+ * are slow and shouldn't hold a connection open.
+ *
+ * @throws {RateLimitError} Instagram is throttling — the artist stays pending
+ * @throws {BusinessDiscoveryConfigError} token missing/expired — the artist stays pending
+ */
+export async function fetchArtistBio(artistId: string): Promise<FetchBioResult> {
+  const now = new Date()
+  const { count: claimed } = await prisma.artist.updateMany({
+    where: { id: artistId, ...claimableWhere(now) },
+    data: { fetchClaimedAt: now },
+  })
+  if (claimed === 0) return { outcome: "skipped", usagePercent: 0, warnings: [] }
+
+  const artist = await prisma.artist.findUniqueOrThrow({
+    where: { id: artistId },
+    include: { locations: true },
+  })
+  const warnings: string[] = []
+  let usagePercent = 0
+
+  try {
+    const result = await fetchArtistProfile(artist.instagramHandle)
+    usagePercent = result.usagePercent
+    const profile = result.profile
+
+    if (!profile) {
+      await prisma.artist.update({
+        where: { id: artistId },
+        data: {
+          fetchStatus: "unavailable",
+          fetchAttempts: { increment: 1 },
+          fetchError: null,
+          fetchClaimedAt: null,
+        },
+      })
+      warnings.push(
+        "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location manually."
+      )
+      return { outcome: "unavailable", usagePercent, warnings }
+    }
+
+    // Parse + geocode before writing, so a Claude/Mapbox failure retries cleanly
+    const parsed = profile.biography ? await parseBioLocations(profile.biography) : []
+    const hasManualPrimary = artist.locations.some((l) => l.source !== "bio" && l.isPrimary)
+    let primaryAssigned = hasManualPrimary
+    const locations: Prisma.ArtistLocationCreateManyInput[] = []
+
+    for (const loc of parsed) {
+      const geo = await geocodeLocation(loc.locationName)
+      if (!geo) warnings.push(`Could not geocode: ${loc.locationName}`)
+
+      // First non-guest-spot location becomes primary
+      const isPrimary = !loc.isGuestSpot && !primaryAssigned
+      if (isPrimary) primaryAssigned = true
+
+      locations.push({
+        artistId,
+        locationName: loc.locationName,
+        city: geo?.city ?? loc.city,
+        country: geo?.country ?? loc.country,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+        isPrimary,
+        isGuestSpot: loc.isGuestSpot,
+        startDate: loc.startDate ? new Date(loc.startDate) : null,
+        endDate: loc.endDate ? new Date(loc.endDate) : null,
+        source: "bio",
+      })
+    }
+
+    if (profile.biography && parsed.length === 0) {
+      warnings.push("No locations found in bio. You can add locations manually.")
+    }
+
+    await prisma.$transaction([
+      prisma.artistLocation.deleteMany({ where: { artistId, source: "bio" } }),
+      prisma.artistLocation.createMany({ data: locations }),
+      prisma.artist.update({
+        where: { id: artistId },
+        data: {
+          displayName: profile.name ?? artist.displayName,
+          bio: profile.biography,
+          profilePicUrl: profile.profilePictureUrl ?? artist.profilePicUrl,
+          accountType: "business",
+          bioLastFetchedAt: new Date(),
+          fetchStatus: "fetched",
+          fetchAttempts: { increment: 1 },
+          fetchError: null,
+          fetchClaimedAt: null,
+        },
+      }),
+    ])
+
+    return { outcome: "fetched", usagePercent, warnings }
+  } catch (err) {
+    if (err instanceof RateLimitError || err instanceof BusinessDiscoveryConfigError) {
+      // Not the artist's fault — release the claim without using up an attempt
+      await prisma.artist.update({ where: { id: artistId }, data: { fetchClaimedAt: null } })
+      throw err
+    }
+
+    const message = err instanceof Error ? err.message : String(err)
+    const attempts = artist.fetchAttempts + 1
+    const failed = attempts >= MAX_FETCH_ATTEMPTS
+    await prisma.artist.update({
+      where: { id: artistId },
+      data: {
+        fetchStatus: failed ? "failed" : "pending",
+        fetchAttempts: attempts,
+        fetchError: message.slice(0, 500),
+        fetchClaimedAt: null,
+      },
+    })
+    console.error(`Bio fetch for @${artist.instagramHandle} failed (attempt ${attempts}):`, err)
+    return { outcome: failed ? "failed" : "retry", usagePercent, warnings: [message] }
+  }
+}
+
+/** Number of the user's artists still waiting for a bio fetch. */
+export function countPendingArtists(userId: string): Promise<number> {
+  return prisma.artist.count({
+    where: { fetchStatus: "pending", users: { some: { userId } } },
+  })
 }
 
 /**
- * Orchestrates: Instagram fetch → bio parse → geocode → DB write.
+ * Fetches the bio of the user's next pending artist. Artists that errored go to
+ * the back of the queue (ordered by attempts).
  *
- * External API calls (Instagram, Claude, Mapbox) are intentionally NOT wrapped
- * in a Prisma transaction — they are slow and shouldn't hold a connection open.
- * Partial data from a mid-pipeline failure is still useful.
+ * @throws {RateLimitError}
+ * @throws {BusinessDiscoveryConfigError}
  */
-export async function addArtistByHandle(
-  handle: string,
-  userId: string,
-  scraper?: ScraperCredentials
-): Promise<PipelineResult> {
+export async function processNextPendingArtist(userId: string): Promise<{
+  artist: SerializedArtist | null
+  outcome: FetchOutcome | null
+  usagePercent: number
+}> {
+  const next = await prisma.artist.findFirst({
+    where: { ...claimableWhere(new Date()), users: { some: { userId } } },
+    orderBy: [{ fetchAttempts: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  })
+  if (!next) return { artist: null, outcome: null, usagePercent: 0 }
+
+  const { outcome, usagePercent } = await fetchArtistBio(next.id)
+  return { artist: await loadUserArtist(userId, next.id), outcome, usagePercent }
+}
+
+async function loadUserArtist(userId: string, artistId: string): Promise<SerializedArtist | null> {
+  const link = await prisma.userArtist.findUnique({
+    where: { userId_artistId: { userId, artistId } },
+    include: { artist: { include: { locations: true } } },
+  })
+  return link ? serializeArtist(link.artist, link.notes) : null
+}
+
+// ---------------------------------------------------------------------------
+// Single add (Add Artist page)
+// ---------------------------------------------------------------------------
+
+/**
+ * Saves one artist, then tries to fetch its bio right away. If Instagram is
+ * rate limiting (or lookups aren't configured) the artist is still saved and
+ * stays pending for the background queue.
+ */
+export async function addArtistByHandle(userId: string, hint: ArtistHint): Promise<AddArtistResult> {
+  const { added, invalid } = await trackArtists(userId, [hint])
+  if (invalid.length > 0) {
+    throw new InvalidHandleError(hint.username)
+  }
+
+  const handle = normalizeHandle(hint.username)
+  // Adding an artist whose fetch errored out is an explicit request to try again
+  await prisma.artist.updateMany({
+    where: { instagramHandle: handle, fetchStatus: "failed" },
+    data: { fetchStatus: "pending", fetchAttempts: 0, fetchError: null },
+  })
+  const artist = await prisma.artist.findUniqueOrThrow({
+    where: { instagramHandle: handle },
+    select: { id: true, fetchStatus: true },
+  })
+
   const warnings: string[] = []
-  const normalized = normalizeHandle(handle)
-
-  // ------------------------------------------------------------------
-  // Step 1 — Check if artist already exists. A record whose bio was never
-  // fetched (profile lookup unavailable when it was added) is re-fetched when
-  // cookie credentials are available instead of staying empty forever.
-  // ------------------------------------------------------------------
-  const existing = await prisma.artist.findUnique({
-    where: { instagramHandle: normalized },
-    include: { locations: true },
-  })
-
-  if (existing && (existing.bioLastFetchedAt || !scraper)) {
-    // Ensure UserArtist link exists
-    await prisma.userArtist.upsert({
-      where: {
-        userId_artistId: { userId, artistId: existing.id },
-      },
-      create: { userId, artistId: existing.id },
-      update: {},
-    })
-
-    return {
-      artist: {
-        id: existing.id,
-        instagramHandle: existing.instagramHandle,
-        displayName: existing.displayName,
-        bio: existing.bio,
-        profilePicUrl: existing.profilePicUrl,
-        accountType: existing.accountType,
-      },
-      locations: existing.locations.map((loc) => ({
-        id: loc.id,
-        locationName: loc.locationName,
-        city: loc.city,
-        country: loc.country,
-        lat: loc.lat,
-        lng: loc.lng,
-        isPrimary: loc.isPrimary,
-        isGuestSpot: loc.isGuestSpot,
-        startDate: loc.startDate,
-        endDate: loc.endDate,
-        source: loc.source,
-      })),
-      status: "existing",
-      warnings,
-    }
-  }
-
-  // ------------------------------------------------------------------
-  // Step 2 — Fetch Instagram profile
-  // ------------------------------------------------------------------
-  let artistData: {
-    instagramHandle: string
-    displayName: string | null
-    bio: string | null
-    profilePicUrl: string | null
-    accountType: string
-    bioLastFetchedAt: Date | null
-  }
-
-  if (scraper) {
-    // Cookie-based scraping path (import flow)
-    // ScraperAuthError and ScraperRateLimitError propagate to caller
-    const scraped = await scrapeProfile(normalized, scraper)
-
-    if (!scraped) {
-      warnings.push(
-        "Instagram profile not found. You can add locations manually."
-      )
-      artistData = {
-        instagramHandle: normalized,
-        displayName: null,
-        bio: null,
-        profilePicUrl: null,
-        accountType: "unknown",
-        bioLastFetchedAt: null,
-      }
+  if (artist.fetchStatus === "pending") {
+    if (!isBusinessDiscoveryConfigured()) {
+      warnings.push("Saved. Instagram bio lookup isn't set up yet, so this artist's bio will be fetched once it is.")
     } else {
-      artistData = {
-        instagramHandle: scraped.username,
-        displayName: scraped.fullName,
-        bio: scraped.biography,
-        profilePicUrl: scraped.profilePicUrl,
-        accountType: scraped.isBusiness ? "business" : "unknown",
-        bioLastFetchedAt: new Date(),
-      }
-    }
-  } else {
-    // Fallback: Business Discovery API (manual single-add flow)
-    let profile = null
-    try {
-      profile = await fetchArtistProfile(normalized)
-    } catch (err) {
-      if (err instanceof RateLimitError) throw err
-      warnings.push(
-        "Could not fetch Instagram profile (API unavailable). You can add locations manually."
-      )
-    }
-
-    if (!profile) {
-      if (warnings.length === 0) {
-        warnings.push(
-          "Instagram profile not found. You can add locations manually."
-        )
-      }
-      artistData = {
-        instagramHandle: normalized,
-        displayName: null,
-        bio: null,
-        profilePicUrl: null,
-        accountType: "unknown",
-        bioLastFetchedAt: null,
-      }
-    } else {
-      artistData = {
-        instagramHandle: profile.username,
-        displayName: profile.name,
-        bio: profile.biography,
-        profilePicUrl: profile.profilePictureUrl,
-        accountType: profile.accountType,
-        bioLastFetchedAt: new Date(),
-      }
-    }
-  }
-
-  // ------------------------------------------------------------------
-  // Step 3 — Create (or fill in the stub) Artist record
-  // ------------------------------------------------------------------
-  const artist = existing
-    ? await prisma.artist.update({ where: { id: existing.id }, data: artistData })
-    : await prisma.artist.create({ data: artistData })
-
-  // ------------------------------------------------------------------
-  // Step 4 — Parse bio for locations
-  // ------------------------------------------------------------------
-  let locationRecords: PipelineResult["locations"] = []
-
-  if (artistData.bio) {
-    const parsed = await parseBioLocations(artistData.bio)
-
-    if (parsed.length === 0) {
-      warnings.push("No locations found in bio. You can add locations manually.")
-    } else {
-      // -----------------------------------------------------------------
-      // Step 5 — Geocode each parsed location
-      // -----------------------------------------------------------------
-      const toCreate: {
-        artistId: string
-        locationName: string
-        city: string | null
-        country: string | null
-        lat: number | null
-        lng: number | null
-        isPrimary: boolean
-        isGuestSpot: boolean
-        startDate: Date | null
-        endDate: Date | null
-        source: string
-      }[] = []
-
-      // Manually added locations on a re-fetched stub keep their primary flag
-      let primaryAssigned = existing?.locations.some((l) => l.isPrimary) ?? false
-
-      for (const loc of parsed) {
-        const geo = await geocodeLocation(loc.locationName)
-
-        if (!geo) {
-          warnings.push(`Could not geocode: ${loc.locationName}`)
+      try {
+        const result = await fetchArtistBio(artist.id)
+        warnings.push(...result.warnings)
+        if (result.outcome === "retry" || result.outcome === "skipped") {
+          warnings.push("Saved. The bio will be fetched automatically from your Artists page.")
         }
-
-        // First non-guest-spot location becomes primary
-        const isPrimary = !loc.isGuestSpot && !primaryAssigned
-        if (isPrimary) primaryAssigned = true
-
-        toCreate.push({
-          artistId: artist.id,
-          locationName: loc.locationName,
-          city: geo?.city ?? loc.city,
-          country: geo?.country ?? loc.country,
-          lat: geo?.lat ?? null,
-          lng: geo?.lng ?? null,
-          isPrimary,
-          isGuestSpot: loc.isGuestSpot,
-          startDate: loc.startDate ? new Date(loc.startDate) : null,
-          endDate: loc.endDate ? new Date(loc.endDate) : null,
-          source: "bio",
-        })
+      } catch (err) {
+        if (err instanceof RateLimitError) {
+          warnings.push("Saved. Instagram is rate limiting right now — the bio will be fetched automatically later.")
+        } else if (err instanceof BusinessDiscoveryConfigError) {
+          console.error("Business Discovery config error:", err.message)
+          warnings.push("Saved. Instagram bio lookup is misconfigured, so the bio will be fetched once it's fixed.")
+        } else {
+          throw err
+        }
       }
-
-      // Bulk-create all location records
-      await prisma.artistLocation.createMany({ data: toCreate })
-
-      // Re-fetch to get generated IDs
-      const created = await prisma.artistLocation.findMany({
-        where: { artistId: artist.id },
-      })
-
-      locationRecords = created.map((loc) => ({
-        id: loc.id,
-        locationName: loc.locationName,
-        city: loc.city,
-        country: loc.country,
-        lat: loc.lat,
-        lng: loc.lng,
-        isPrimary: loc.isPrimary,
-        isGuestSpot: loc.isGuestSpot,
-        startDate: loc.startDate,
-        endDate: loc.endDate,
-        source: loc.source,
-      }))
     }
   }
 
-  // ------------------------------------------------------------------
-  // Step 6 — Link artist to user
-  // ------------------------------------------------------------------
-  await prisma.userArtist.upsert({
-    where: { userId_artistId: { userId, artistId: artist.id } },
-    create: { userId, artistId: artist.id },
-    update: {},
-  })
+  const serialized = await loadUserArtist(userId, artist.id)
+  if (!serialized) throw new Error(`Artist @${handle} was saved but could not be reloaded`)
 
-  return {
-    artist: {
-      id: artist.id,
-      instagramHandle: artist.instagramHandle,
-      displayName: artist.displayName,
-      bio: artist.bio,
-      profilePicUrl: artist.profilePicUrl,
-      accountType: artist.accountType,
-    },
-    locations: locationRecords,
-    status: existing ? "updated" : "created",
-    warnings,
+  return { artist: serialized, status: added > 0 ? "created" : "existing", warnings }
+}
+
+export class InvalidHandleError extends Error {
+  constructor(handle: string) {
+    super(
+      `Invalid Instagram handle "${handle}". Handles must be 1-30 characters and contain only letters, numbers, periods, or underscores.`
+    )
+    this.name = "InvalidHandleError"
   }
 }

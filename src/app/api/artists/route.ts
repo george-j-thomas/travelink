@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { addArtistByHandle } from "@/lib/artist-pipeline"
-import { RateLimitError } from "@/lib/instagram"
-import { ScraperAuthError, ScraperRateLimitError } from "@/lib/instagram-scraper"
+import { addArtistByHandle, InvalidHandleError } from "@/lib/artist-pipeline"
+import { serializeArtist } from "@/lib/artist-dto"
 
-// POST /api/artists — Add artist by Instagram handle
+// POST /api/artists — Add one artist by Instagram handle. The artist is saved
+// even if its bio can't be fetched yet (it stays pending for the bio queue).
 export async function POST(request: NextRequest) {
   let session
   try {
@@ -24,7 +24,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { handle, sessionId } = body as { handle?: unknown; sessionId?: unknown }
+  const { handle, fullName, profilePicUrl } = (body ?? {}) as {
+    handle?: unknown
+    fullName?: unknown
+    profilePicUrl?: unknown
+  }
 
   if (!handle || typeof handle !== "string" || handle.trim().length === 0) {
     return NextResponse.json(
@@ -32,33 +36,17 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   }
-  if (sessionId !== undefined && typeof sessionId !== "string") {
-    return NextResponse.json(
-      { error: "sessionId must be a string" },
-      { status: 400 }
-    )
-  }
-
-  const scraper = sessionId?.trim()
-    ? { sessionId, userAgent: request.headers.get("user-agent") ?? undefined }
-    : undefined
 
   try {
-    const result = await addArtistByHandle(handle, session.user.id, scraper)
+    const result = await addArtistByHandle(session.user.id, {
+      username: handle,
+      fullName: typeof fullName === "string" ? fullName : null,
+      profilePicUrl: typeof profilePicUrl === "string" ? profilePicUrl : null,
+    })
     return NextResponse.json(result, { status: result.status === "created" ? 201 : 200 })
   } catch (err) {
-    if (err instanceof RateLimitError || err instanceof ScraperRateLimitError) {
-      return NextResponse.json(
-        { error: err.message },
-        { status: 429 }
-      )
-    }
-    // 403, not 401: the Instagram cookie was rejected, not the Travelink session
-    if (err instanceof ScraperAuthError) {
-      return NextResponse.json(
-        { error: err.message, code: "instagram_session" },
-        { status: 403 }
-      )
+    if (err instanceof InvalidHandleError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
     }
     console.error("POST /api/artists failed:", err)
     return NextResponse.json(
@@ -112,28 +100,7 @@ export async function GET(request: NextRequest) {
       orderBy: { artist: { displayName: "asc" } },
     })
 
-    const artists = userArtists.map((ua) => ({
-      id: ua.artist.id,
-      instagramHandle: ua.artist.instagramHandle,
-      displayName: ua.artist.displayName,
-      bio: ua.artist.bio,
-      profilePicUrl: ua.artist.profilePicUrl,
-      accountType: ua.artist.accountType,
-      notes: ua.notes,
-      locations: ua.artist.locations.map((loc) => ({
-        id: loc.id,
-        locationName: loc.locationName,
-        city: loc.city,
-        country: loc.country,
-        lat: loc.lat,
-        lng: loc.lng,
-        isPrimary: loc.isPrimary,
-        isGuestSpot: loc.isGuestSpot,
-        startDate: loc.startDate,
-        endDate: loc.endDate,
-        source: loc.source,
-      })),
-    }))
+    const artists = userArtists.map((ua) => serializeArtist(ua.artist, ua.notes))
 
     return NextResponse.json(artists)
   } catch (err) {

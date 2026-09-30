@@ -14,12 +14,11 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 
 ### Key Layers
 - `src/lib/` — Service modules. Each is self-contained with its own types, error classes, and a single public API:
-  - `artist-pipeline.ts` — Orchestrator: Instagram fetch → Claude bio parse → Mapbox geocode → DB write
-  - `instagram.ts` — Business Discovery API client (server-side app token)
-  - `instagram-scraper.ts` — Cookie-based internal web API client (following list, profiles, account search). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
+  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write
+  - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
+  - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and account search (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
   - `bio-parser.ts` — Claude tool_use for structured location extraction
   - `geocoding.ts` — Mapbox forward geocoding
-  - `import-runner.ts` — Step-based bulk import: the browser calls `POST /api/import/[id]/next` in a loop, waiting the returned `nextDelayMs`. No background work (serverless-safe); scrape pacing lives here
   - `import-parser.ts` — Instagram data export JSON parser
   - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers)
   - `db.ts` — Prisma client singleton
@@ -31,6 +30,12 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - Next.js 15 params: `params: Promise<{ id: string }>`
 
 - `src/components/` — React components. `ui/` is shadcn-managed (do not hand-edit). Custom components sit alongside.
+  - `bio-queue.tsx` — `BioQueueProvider` (in the `(app)` layout) drains pending bios by calling `POST /api/artists/fetch-next` in a loop, waiting the returned `nextDelayMs`; rate-limit pauses persist in localStorage. All queue state lives in the DB, so navigation never loses work
+
+### Import Flow
+1. Get the following list (cookie scrape via `/api/import/scrape`, or data export via `/api/import/upload`) — returns accounts only, nothing is saved server-side. The import page keeps the list + selection as a per-user localStorage draft
+2. `POST /api/artists/bulk` saves the selection as pending artists right away
+3. The bio queue fetches bios in the background of any app page
 
 ### Data Flow
 Artists are **shared** across users. `UserArtist` is the join table — deleting an artist from a user's list only removes the link, not the artist record.

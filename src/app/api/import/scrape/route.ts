@@ -37,11 +37,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const handles = await scrapeFollowing({
+    const accounts = await scrapeFollowing({
       sessionId,
       userAgent: request.headers.get("user-agent") ?? undefined,
     })
-    return NextResponse.json({ handles, count: handles.length })
+    return NextResponse.json({ accounts, count: accounts.length })
   } catch (err) {
     // 403, not 401: the Instagram cookie was rejected, not the Travelink session
     if (err instanceof ScraperAuthError) {
