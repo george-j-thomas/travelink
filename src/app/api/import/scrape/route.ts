@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ handles, count: handles.length })
   } catch (err) {
+    // 403, not 401: the Instagram cookie was rejected, not the Travelink session
     if (err instanceof ScraperAuthError) {
-      return NextResponse.json({ error: err.message }, { status: 401 })
+      return NextResponse.json({ error: err.message, code: "instagram_session" }, { status: 403 })
     }
     if (err instanceof ScraperRateLimitError) {
       return NextResponse.json({ error: err.message }, { status: 429 })

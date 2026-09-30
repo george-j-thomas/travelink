@@ -62,28 +62,43 @@ const RATE_LIMIT_MESSAGE =
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildHeaders(cleanSessionId: string, userAgent?: string): Record<string, string> {
-  return {
-    "User-Agent": userAgent?.trim() || FALLBACK_USER_AGENT,
-    Accept: "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    Referer: "https://www.instagram.com/",
-    Cookie: `sessionid=${cleanSessionId}`,
-    "X-IG-App-ID": WEB_APP_ID,
-    "X-Requested-With": "XMLHttpRequest",
-  }
-}
+// Printable ASCII without whitespace, quotes, commas, semicolons or backslashes (RFC 6265)
+const COOKIE_VALUE_RE = /^[\x21\x23-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E]+$/
 
-function cleanSessionId(raw: string): string {
-  let cleaned = raw.trim()
-  // Strip "sessionid=" prefix if the user pasted the full cookie
-  if (cleaned.toLowerCase().startsWith("sessionid=")) {
-    cleaned = cleaned.slice("sessionid=".length).trim()
+/**
+ * Accepts a bare `sessionid` value, `sessionid=<value>`, or a full Cookie
+ * header copied from DevTools (which carries csrftoken/mid too and looks more
+ * like the real browser).
+ */
+function parseCookieInput(raw: string): Map<string, string> {
+  const trimmed = raw.trim()
+  const jar = new Map<string, string>()
+
+  if (/(^|;)\s*sessionid\s*=/i.test(trimmed)) {
+    for (const part of trimmed.split(";")) {
+      const eq = part.indexOf("=")
+      if (eq <= 0) continue
+      const name = part.slice(0, eq).trim()
+      const value = part.slice(eq + 1).trim()
+      if (!name || !value) continue
+      jar.set(name.toLowerCase() === "sessionid" ? "sessionid" : name, value)
+    }
+  } else if (trimmed) {
+    jar.set("sessionid", trimmed)
   }
-  if (!cleaned) {
+
+  const sessionId = jar.get("sessionid")
+  if (!sessionId) {
     throw new ScraperAuthError("Session ID is empty. Please provide a valid sessionid cookie value.")
   }
-  return cleaned
+  for (const [name, value] of jar) {
+    if (!COOKIE_VALUE_RE.test(name) || !COOKIE_VALUE_RE.test(value)) {
+      throw new ScraperAuthError(
+        "That doesn't look like a sessionid cookie value. Copy just the value of the sessionid cookie."
+      )
+    }
+  }
+  return jar
 }
 
 function delay(ms: number): Promise<void> {
@@ -124,41 +139,123 @@ async function throwForStatus(res: Response, context: string): Promise<void> {
 // Internal API calls
 // ---------------------------------------------------------------------------
 
+const MAX_REDIRECTS = 3
+
 /**
- * Instagram answers rejected sessions and flagged IPs (e.g. cloud hosts) with
- * redirects to login/challenge pages that loop forever, so redirects are never
- * followed — they are classified into actionable errors instead.
+ * One logical browser session: a tiny cookie jar plus browser-like headers.
+ *
+ * Instagram sets cookies (csrftoken, mid, …) via a redirect back to the same
+ * URL and expects them on the retry, the way a browser would. Node's fetch has
+ * no cookie jar, so following redirects blindly loops forever — redirects are
+ * followed manually here, carrying cookies, and login/challenge redirects are
+ * turned into actionable errors.
  */
-async function igFetch(url: string, headers: Record<string, string>, context: string): Promise<Response> {
-  const res = await fetch(url, { headers, redirect: "manual" })
-  if (res.status < 300 || res.status >= 400) return res
+class InstagramSession {
+  private readonly jar: Map<string, string>
+  private readonly userAgent: string
+  readonly userId: string | null
 
-  let path = ""
-  try {
-    path = new URL(res.headers.get("location") ?? "", "https://www.instagram.com").pathname
-  } catch {
-    // Unparseable Location — classify as unknown below
+  constructor(credentials: ScraperCredentials) {
+    this.jar = parseCookieInput(credentials.sessionId)
+    this.userAgent = credentials.userAgent?.trim() || FALLBACK_USER_AGENT
+    this.userId = userIdFromSessionId(this.jar.get("sessionid")!)
+    if (this.userId && !this.jar.has("ds_user_id")) {
+      this.jar.set("ds_user_id", this.userId)
+    }
   }
-  // Path only: query strings can echo request details
-  console.warn(`Instagram ${context} redirected (${res.status}) to ${path || "<none>"}`)
 
-  if (/\/(challenge|checkpoint)\b/.test(path)) {
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "User-Agent": this.userAgent,
+      Accept: "*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      Referer: "https://www.instagram.com/",
+      Cookie: Array.from(this.jar, ([name, value]) => `${name}=${value}`).join("; "),
+      "X-IG-App-ID": WEB_APP_ID,
+      "X-Requested-With": "XMLHttpRequest",
+    }
+    const csrf = this.jar.get("csrftoken")
+    if (csrf) headers["X-CSRFToken"] = csrf
+    return headers
+  }
+
+  /** Applies Set-Cookie headers to the jar; returns the cookie names (never values). */
+  private absorbCookies(res: Response): string[] {
+    const names: string[] = []
+    for (const line of res.headers.getSetCookie()) {
+      const [pair, ...attrs] = line.split(";")
+      const eq = pair.indexOf("=")
+      if (eq <= 0) continue
+      const name = pair.slice(0, eq).trim()
+      const value = pair.slice(eq + 1).trim()
+      names.push(name)
+
+      const expired = attrs.some((a) => {
+        const [key, val = ""] = a.split("=").map((s) => s.trim())
+        if (/^max-age$/i.test(key)) return Number(val) <= 0
+        if (/^expires$/i.test(key)) return Date.parse(val) < Date.now()
+        return false
+      })
+      if (expired || value === "" || value === '""') {
+        this.jar.delete(name)
+      } else if (COOKIE_VALUE_RE.test(value)) {
+        this.jar.set(name, value)
+      }
+    }
+    return names
+  }
+
+  async get(url: string, context: string): Promise<Response> {
+    let current = url
+
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const res = await fetch(current, { headers: this.headers(), redirect: "manual" })
+      const setCookies = this.absorbCookies(res)
+      if (res.status < 300 || res.status >= 400) return res
+
+      let next: URL | null = null
+      try {
+        next = new URL(res.headers.get("location") ?? "", current)
+      } catch {
+        // Unparseable Location — handled below
+      }
+      const path = next?.pathname ?? ""
+      // Path and cookie names only: values and query strings can carry secrets
+      console.warn(
+        `Instagram ${context} redirected (${res.status}) to ${path || "<none>"}; ` +
+          `set-cookie: ${setCookies.join(", ") || "none"}`
+      )
+
+      if (!this.jar.has("sessionid")) {
+        throw new ScraperAuthError(AUTH_ERROR_MESSAGE)
+      }
+      if (/\/(challenge|checkpoint)\b/.test(path)) {
+        throw new ScraperAuthError(
+          "Instagram wants to verify this session. Open Instagram in your browser or app, " +
+            "complete any security check, then copy a fresh sessionid."
+        )
+      }
+      if (/\/accounts\/(suspended|disabled)\b/.test(path)) {
+        throw new ScraperAuthError("Instagram reports this account as suspended or disabled.")
+      }
+      if (/\/accounts\/login\b/.test(path) || path === "/") {
+        throw new ScraperAuthError(
+          "Instagram rejected the session from this server (redirected to login). " +
+            "The cookie may be expired, or Instagram may be blocking requests from cloud hosting — " +
+            "try a fresh sessionid, or run the app locally."
+        )
+      }
+      if (!next || next.hostname !== "www.instagram.com") {
+        throw new Error(`Instagram ${context} request redirected (${res.status}) to ${path || "unknown"}`)
+      }
+      current = next.toString()
+    }
+
     throw new ScraperAuthError(
-      "Instagram wants to verify this session. Open Instagram in your browser or app, " +
-        "complete any security check, then copy a fresh sessionid."
+      "Instagram kept redirecting instead of answering — it may be blocking requests from " +
+        "this server. Try a fresh sessionid, or run the app locally."
     )
   }
-  if (/\/accounts\/(suspended|disabled)\b/.test(path)) {
-    throw new ScraperAuthError("Instagram reports this account as suspended or disabled.")
-  }
-  if (/\/accounts\/login\b/.test(path) || path === "/") {
-    throw new ScraperAuthError(
-      "Instagram rejected the session from this server (redirected to login). " +
-        "The cookie may be expired, or Instagram may be blocking requests from cloud hosting — " +
-        "try a fresh sessionid, or run the import from a local copy of the app."
-    )
-  }
-  throw new Error(`Instagram ${context} request redirected (${res.status}) to ${path || "unknown"}`)
 }
 
 /** The sessionid cookie is `<user_id>:<token>:...` (URL-encoded). */
@@ -173,9 +270,9 @@ function userIdFromSessionId(cleanSessionId: string): string | null {
   return /^\d+$/.test(prefix) ? prefix : null
 }
 
-async function fetchUserId(headers: Record<string, string>): Promise<string> {
+async function fetchUserId(session: InstagramSession): Promise<string> {
   const url = `${BASE_URL}/accounts/current_user/?edit=true`
-  const res = await igFetch(url, headers, "current_user")
+  const res = await session.get(url, "current_user")
   await throwForStatus(res, "current_user")
 
   const data = await res.json()
@@ -195,16 +292,16 @@ interface FollowingPage {
 }
 
 async function fetchFollowingPage(
-  headers: Record<string, string>,
+  session: InstagramSession,
   userId: string,
   maxId?: string
 ): Promise<FollowingPage> {
   let url = `${BASE_URL}/friendships/${userId}/following/?count=${PAGE_SIZE}`
   if (maxId) {
-    url += `&max_id=${maxId}`
+    url += `&max_id=${encodeURIComponent(maxId)}`
   }
 
-  const res = await igFetch(url, headers, "following")
+  const res = await session.get(url, "following")
   await throwForStatus(res, "following")
 
   const data = await res.json()
@@ -248,12 +345,11 @@ export async function scrapeProfile(
   handle: string,
   credentials: ScraperCredentials
 ): Promise<ScrapedProfile | null> {
-  const cleaned = cleanSessionId(credentials.sessionId)
-  const headers = buildHeaders(cleaned, credentials.userAgent)
+  const session = new InstagramSession(credentials)
   const normalized = handle.replace(/^@/, "").trim().toLowerCase()
 
   const url = `${BASE_URL}/users/web_profile_info/?username=${encodeURIComponent(normalized)}`
-  const res = await igFetch(url, headers, "web_profile_info")
+  const res = await session.get(url, "web_profile_info")
 
   if (res.status === 404) {
     return null
@@ -281,6 +377,50 @@ export async function scrapeProfile(
 // Public API
 // ---------------------------------------------------------------------------
 
+export interface InstagramSearchResult {
+  username: string
+  fullName: string | null
+  profilePicUrl: string | null
+  isVerified: boolean
+  isPrivate: boolean
+}
+
+const SEARCH_LIMIT = 8
+
+/**
+ * Account search, as used by the search box on instagram.com.
+ * Returns up to 8 accounts in Instagram's ranking order.
+ */
+export async function searchUsers(
+  query: string,
+  credentials: ScraperCredentials
+): Promise<InstagramSearchResult[]> {
+  const q = query.trim().replace(/^@+/, "").trim()
+  if (!q) return []
+
+  const session = new InstagramSession(credentials)
+  const url =
+    `${BASE_URL}/web/search/topsearch/?context=blended&include_reel=false` +
+    `&query=${encodeURIComponent(q)}`
+  const res = await session.get(url, "search")
+  await throwForStatus(res, "search")
+
+  const data = await res.json()
+  const entries: unknown[] = Array.isArray(data?.users) ? data.users : []
+
+  return entries
+    .map((entry) => (entry as { user?: Record<string, unknown> })?.user)
+    .filter((u): u is Record<string, unknown> => typeof u?.username === "string")
+    .slice(0, SEARCH_LIMIT)
+    .map((u) => ({
+      username: String(u.username).toLowerCase(),
+      fullName: typeof u.full_name === "string" && u.full_name ? u.full_name : null,
+      profilePicUrl: typeof u.profile_pic_url === "string" ? u.profile_pic_url : null,
+      isVerified: u.is_verified === true,
+      isPrivate: u.is_private === true,
+    }))
+}
+
 /**
  * Scrapes the authenticated user's full following list from Instagram.
  * Returns a sorted, deduplicated, lowercased array of usernames.
@@ -288,16 +428,14 @@ export async function scrapeProfile(
  * @param credentials - The `sessionid` cookie (and browser User-Agent) from the user's browser
  */
 export async function scrapeFollowing(credentials: ScraperCredentials): Promise<string[]> {
-  const cleaned = cleanSessionId(credentials.sessionId)
-  const headers = buildHeaders(cleaned, credentials.userAgent)
-
-  const userId = userIdFromSessionId(cleaned) ?? (await fetchUserId(headers))
+  const session = new InstagramSession(credentials)
+  const userId = session.userId ?? (await fetchUserId(session))
 
   const allUsernames: string[] = []
   let nextMaxId: string | null = null
 
   do {
-    const page = await fetchFollowingPage(headers, userId, nextMaxId ?? undefined)
+    const page = await fetchFollowingPage(session, userId, nextMaxId ?? undefined)
     allUsernames.push(...page.usernames)
 
     // Safety cap — return what we have without error
