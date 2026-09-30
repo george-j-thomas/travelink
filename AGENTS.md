@@ -90,6 +90,9 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Everything else is server-only (Instagram tokens, Anthropic key, DB URL, NextAuth secret)
 - See `.env.example` for the full list
 
+### Git
+- Never add `Co-authored-by` trailers (or any AI attribution) to commit messages, PR/MR titles, or PR/MR descriptions
+
 ## Things to Avoid
 
 - Do not hand-edit files in `src/components/ui/` — they are managed by shadcn
