@@ -102,7 +102,7 @@ function EmptyState() {
           </div>
           <Link href="/artists/add" className="mt-2">
             <Button
-              className="bg-brand-500 font-medium text-black hover:bg-brand-400"
+              className="bg-brand-500 font-medium text-white hover:bg-brand-600"
               size="lg"
             >
               <Plus className="size-4" />

@@ -78,7 +78,7 @@ function TogglePill({
   checked,
   onChange,
   label,
-  accentClass = "border-brand-500/30 bg-brand-500/10 text-brand-400",
+  accentClass = "border-brand-500/30 bg-brand-500/10 text-brand-600",
 }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -293,7 +293,7 @@ export function LocationForm({
       {isBioParsed && (
         <div className="flex items-start gap-3 rounded-lg border border-brand-500/20 bg-brand-500/5 px-4 py-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-500" />
-          <p className="text-sm leading-relaxed text-brand-300/90">
+          <p className="text-sm leading-relaxed text-brand-700/90">
             This location was auto-detected from the artist&apos;s bio. Editing
             it will mark it as manually set and it won&apos;t be updated on bio
             refresh.
@@ -452,13 +452,13 @@ export function LocationForm({
           checked={isPrimary}
           onChange={setIsPrimary}
           label="Primary location"
-          accentClass="border-brand-500/30 bg-brand-500/10 text-brand-400"
+          accentClass="border-brand-500/30 bg-brand-500/10 text-brand-600"
         />
         <TogglePill
           checked={isGuestSpot}
           onChange={setIsGuestSpot}
           label="Guest spot"
-          accentClass="border-guest-500/30 bg-guest-500/10 text-guest-400"
+          accentClass="border-guest-500/30 bg-guest-500/10 text-guest-500"
         />
       </div>
 
@@ -496,7 +496,7 @@ export function LocationForm({
         <Button
           type="submit"
           disabled={saving}
-          className="bg-brand-500 text-black hover:bg-brand-400"
+          className="bg-brand-500 text-white hover:bg-brand-600"
         >
           {saving && <Loader2 className="size-3.5 animate-spin" />}
           {saving ? "Saving…" : isEditing ? "Update location" : "Save location"}

@@ -226,7 +226,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isPrimary && (
                 <Badge
                   variant="secondary"
-                  className="border border-brand-500/20 bg-brand-500/10 text-brand-400"
+                  className="border border-brand-500/20 bg-brand-500/10 text-brand-600"
                 >
                   Primary
                 </Badge>
@@ -235,7 +235,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isGuestSpot && (
                 <Badge
                   variant="secondary"
-                  className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
+                  className="border border-guest-500/20 bg-guest-500/10 text-guest-500"
                 >
                   Guest Spot
                 </Badge>
@@ -386,7 +386,7 @@ export default function ArtistDetailPage() {
             </Avatar>
 
             <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="font-display text-2xl font-black uppercase tracking-tight text-foreground">
+              <h1 className="font-display text-2xl tracking-tight text-foreground">
                 {name}
               </h1>
 
@@ -491,7 +491,7 @@ export default function ArtistDetailPage() {
 
           <Link
             href={`/artists/${artist.id}/locations`}
-            className="text-sm text-brand-500 transition-colors hover:text-brand-400"
+            className="text-sm text-brand-500 transition-colors hover:text-brand-600"
           >
             Edit locations
           </Link>
@@ -516,7 +516,7 @@ export default function ArtistDetailPage() {
                 </p>
                 <Link
                   href={`/artists/${artist.id}/locations`}
-                  className="mt-2 text-sm text-brand-500 transition-colors hover:text-brand-400"
+                  className="mt-2 text-sm text-brand-500 transition-colors hover:text-brand-600"
                 >
                   Add locations manually →
                 </Link>

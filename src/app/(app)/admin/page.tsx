@@ -83,13 +83,13 @@ function InviteStatusBadge({ invite }: { invite: Invite }) {
   switch (invite.status) {
     case "valid":
       return (
-        <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-200">
+        <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-700">
           Open · expires {formatDate(invite.expiresAt)}
         </Badge>
       )
     case "used":
       return (
-        <Badge variant="outline" className="border-guest-400/30 bg-guest-400/10 text-guest-300">
+        <Badge variant="outline" className="border-guest-400/30 bg-guest-400/10 text-guest-600">
           Used by {invite.usedBy ?? "deleted user"}
         </Badge>
       )
@@ -245,7 +245,7 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto grid max-w-4xl gap-6 px-4 py-8 sm:px-6">
-      <h1 className="font-display text-2xl font-black uppercase tracking-tight">Admin</h1>
+      <h1 className="font-display text-2xl tracking-tight">Admin</h1>
 
       {error && (
         <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -332,7 +332,7 @@ export default function AdminPage() {
             <Button
               type="submit"
               disabled={creating}
-              className="bg-brand-500 text-black hover:bg-brand-400"
+              className="bg-brand-500 text-white hover:bg-brand-600"
             >
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               Create invite
@@ -407,7 +407,7 @@ export default function AdminPage() {
                   <span className="flex items-center gap-2 truncate text-sm">
                     {user.email ?? user.name ?? user.id}
                     {user.isAdmin && (
-                      <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-200">
+                      <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-700">
                         Admin
                       </Badge>
                     )}

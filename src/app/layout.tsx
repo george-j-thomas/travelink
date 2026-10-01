@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Chakra_Petch, Geist_Mono, Saira } from "next/font/google";
+import { Chakra_Petch, Dela_Gothic_One, Geist_Mono, Saira } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
@@ -9,12 +9,19 @@ const chakraPetch = Chakra_Petch({
   weight: ["400", "500", "600", "700"],
 });
 
-// Variable width axis lets `font-display` stretch to 125% (extended techno face)
+// Display face. Also carries katakana: Google serves CJK glyphs as
+// unicode-range chunks, so only the characters on the page are downloaded.
+const dela = Dela_Gothic_One({
+  variable: "--font-dela",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+// Variable width axis lets `font-wide` stretch to 125% for small labels
 const saira = Saira({
   variable: "--font-saira",
   subsets: ["latin"],
   axes: ["wdth"],
-  style: ["normal", "italic"],
 });
 
 const geistMono = Geist_Mono({
@@ -36,7 +43,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${chakraPetch.variable} ${saira.variable} ${geistMono.variable}`}
+      className={`${chakraPetch.variable} ${dela.variable} ${saira.variable} ${geistMono.variable}`}
     >
       <body className="antialiased">
         <Providers>{children}</Providers>

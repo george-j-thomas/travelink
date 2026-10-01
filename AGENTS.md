@@ -78,16 +78,16 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Always use the singleton from `@/lib/db`, never instantiate `PrismaClient` directly
 
 ### UI
-- Style: **Wipeout / Designers Republic techno** — loud, sharp, square corners (`--radius: 0`), extended uppercase type, HUD microcopy, chevrons, hazard stripes, grids. No literal racing/car imagery
-- Palette: **red, black and grey only — no yellow, no cyan**. Tokens in `globals.css`: `brand-200…900` (signal red, primary accent), `guest-300…600` (silver, guest spots), neutral black/grey surfaces. Use these, not raw Tailwind hues. Mapbox layers can't read CSS vars; `artist-map.tsx` mirrors them as hex
-- Fonts: `font-display` = Saira stretched to 125% width (custom utility; headings, brand, buttons; uppercase, `font-black`), `font-heading` = Saira normal width (shadcn titles), `font-sans` = Chakra Petch, `font-mono` = Geist Mono (HUD readouts)
-- Marks in `src/components/brand/marks.tsx`: `BrandMark` ("TRAVEL" grey + "INK" black on a sheared red block), `Chevrons`, `Crosshair`, `Barcode`, `CornerTicks`, `Readout` (mono microcopy). Decorative only
-- Utilities: `wx-cut` (two corners cut, size via `--cut`), `wx-slant` (parallelogram, `--slant`), `wx-outline` (hollow type, `--stroke-c`), `wx-grid` (`--grid`), `wx-hazard` (`--stripe`), `wx-hairlines`, `wx-scanlines`, `animate-wx-{wipe,rise,marquee,marquee-reverse,blink,sweep}` (all disabled under reduced motion). `clip-path` hides box-shadow and focus outlines, so pair clipped shapes with an offset sibling layer and put focus rings on an unclipped parent
+- Style: **light Designers Republic / Wipeout-cover** — pale-grey paper, black ink, a sparing vermilion accent. Hairline routing lines with 45° bends and terminal dots, tick rulers, `//:00x` codes, katakana, speed-line bands, round pictograms, rounded tabs. Not military/HUD, no racing imagery
+- Light theme only (`:root` in `globals.css`; there is no `.dark` block). Palette: **red, black and grey — no yellow, no cyan**. Tokens: `brand-50…900` (vermilion; `brand-500` for fills/large type, `brand-600/700` for small text on paper), `guest-300…700` (graphite, guest spots), `paper` / `paper-dark` (section bands). Use these, not raw Tailwind hues. Mapbox layers can't read CSS vars; `artist-map.tsx` mirrors them as hex on the `light-v11` style
+- Fonts: `font-display` / `font-heading` = Dela Gothic One (weight 400 only — never `font-bold`/`font-black`; headings usually lowercase), `font-wide` = Saira at 125% width (buttons, nav, small caps labels), `font-sans` = Chakra Petch, `font-mono` = Geist Mono (readouts). Only Dela has katakana glyphs, so wrap any Japanese text in `font-display`
+- Marks in `src/components/brand/marks.tsx`: `BrandMark` (lowercase "travel" + vermilion "ink″"), `RoutingLines` (`layout`: `hero` | `frame`, each keeps clear of its page's copy), `SpeedLines`, `Ruler`, `Tag`, `Readout`, `Glyph`, `Chevrons`, `Plus`, `Warn`. Decorative only
+- Utilities: `dr-grid` (`--grid`), `dr-notch` (cut bottom-right corner, `--notch`), `animate-dr-{rise,marquee,draw,blink}` (all disabled under reduced motion). `clip-path` hides borders, shadows and focus outlines on the clipped element
 - shadcn/ui components in `src/components/ui/` — add via `npx shadcn@latest add <component>`, never create manually
-- Card styling: `border-border/50 shadow-2xl shadow-black/25` (auth cards: `border border-border` on a red offset slab)
+- Card styling: `border-border/50 shadow-2xl shadow-black/25` (auth cards: `border border-foreground/20` with a soft drop shadow)
 - Glassmorphic surfaces: `bg-background/80 backdrop-blur-xl backdrop-saturate-150`
-- Primary badges: red-tinted (`border-brand-500/30 bg-brand-500/10 text-brand-200`)
-- Guest spot badges: silver-tinted (`guest-*`); success states also use silver, not green
+- Primary badges: vermilion-tinted (`border-brand-500/30 bg-brand-500/10 text-brand-700`); primary buttons are `bg-brand-500 text-white`
+- Guest spot badges: graphite-tinted (`guest-*`); success states also use graphite, not green
 - Icons from `lucide-react`
 
 ### Error Handling

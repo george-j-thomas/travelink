@@ -144,7 +144,7 @@ export function MapSidebar({
                         )}
                         <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground/70">
                           {isGuestSpot ? (
-                            <Plane className="size-3 shrink-0 text-guest-400" />
+                            <Plane className="size-3 shrink-0 text-guest-500" />
                           ) : isPrimary ? (
                             <MapPin className="size-3 shrink-0 text-brand-500" />
                           ) : (

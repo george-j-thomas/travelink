@@ -136,7 +136,7 @@ function InstructionStep({
 }) {
   return (
     <li className="flex gap-2.5">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[11px] font-semibold text-brand-400">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[11px] font-semibold text-brand-600">
         {number}
       </span>
       <span className="pt-px leading-5">{children}</span>
@@ -515,7 +515,7 @@ export default function ImportArtistsPage() {
       {/* ============================================================ */}
       {step === "method" && (
         <>
-          <h1 className="mb-6 font-display text-xl font-black uppercase tracking-tight">
+          <h1 className="mb-6 font-display text-xl tracking-tight">
             Import Artists
           </h1>
 
@@ -532,7 +532,7 @@ export default function ImportArtistsPage() {
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
                 <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
-                  <Upload className="h-5 w-5 text-brand-400" />
+                  <Upload className="h-5 w-5 text-brand-600" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Upload Data Export
@@ -610,7 +610,7 @@ export default function ImportArtistsPage() {
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
                 <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
-                  <Cookie className="h-5 w-5 text-brand-400" />
+                  <Cookie className="h-5 w-5 text-brand-600" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Paste Session Cookie
@@ -679,7 +679,7 @@ export default function ImportArtistsPage() {
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-brand-500 font-medium text-black hover:bg-brand-400"
+                    className="w-full bg-brand-500 font-medium text-white hover:bg-brand-600"
                     disabled={isFetching || !cookie}
                   >
                     {isFetching ? (
@@ -748,7 +748,7 @@ export default function ImportArtistsPage() {
             {notice && (
               <div
                 role="status"
-                className="flex items-start gap-2.5 rounded-lg border border-guest-400/25 bg-guest-400/10 px-4 py-3 text-sm text-guest-300"
+                className="flex items-start gap-2.5 rounded-lg border border-guest-400/25 bg-guest-400/10 px-4 py-3 text-sm text-guest-600"
               >
                 <Check className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
@@ -864,7 +864,7 @@ export default function ImportArtistsPage() {
             <Button
               onClick={saveSelected}
               disabled={selectedHandles.size === 0 || isSaving}
-              className="w-full bg-brand-500 font-medium text-black hover:bg-brand-400 sm:w-auto"
+              className="w-full bg-brand-500 font-medium text-white hover:bg-brand-600 sm:w-auto"
             >
               {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

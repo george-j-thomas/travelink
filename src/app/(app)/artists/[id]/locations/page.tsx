@@ -206,7 +206,7 @@ function LocationCardDisplay({
               {location.isPrimary && (
                 <Badge
                   variant="secondary"
-                  className="border border-brand-500/20 bg-brand-500/10 text-brand-400"
+                  className="border border-brand-500/20 bg-brand-500/10 text-brand-600"
                 >
                   Primary
                 </Badge>
@@ -215,7 +215,7 @@ function LocationCardDisplay({
               {location.isGuestSpot && (
                 <Badge
                   variant="secondary"
-                  className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
+                  className="border border-guest-500/20 bg-guest-500/10 text-guest-500"
                 >
                   Guest Spot
                 </Badge>
@@ -451,7 +451,7 @@ export default function ArtistLocationsPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-black uppercase tracking-tight text-foreground">
+          <h1 className="font-display text-2xl tracking-tight text-foreground">
             Locations
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -472,7 +472,7 @@ export default function ArtistLocationsPage() {
               setShowAddForm(true)
               setEditingId(null)
             }}
-            className="shrink-0 bg-brand-500 text-black hover:bg-brand-400"
+            className="shrink-0 bg-brand-500 text-white hover:bg-brand-600"
           >
             <Plus className="size-3.5" />
             Add Location
@@ -553,7 +553,7 @@ export default function ArtistLocationsPage() {
 
                 <Button
                   onClick={() => setShowAddForm(true)}
-                  className="mt-5 bg-brand-500 text-black hover:bg-brand-400"
+                  className="mt-5 bg-brand-500 text-white hover:bg-brand-600"
                   size="sm"
                 >
                   <Plus className="size-3.5" />

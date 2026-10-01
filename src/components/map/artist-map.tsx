@@ -107,11 +107,11 @@ const clusterLayer = {
     "circle-color": [
       "step",
       ["get", "point_count"],
-      "#ee1c25", // brand-500 — small clusters
+      "#e23a10", // brand-500 — small clusters
       10,
-      "#c8141c", // brand-600 — medium
+      "#c22f0b", // brand-600 — medium
       50,
-      "#9e1016", // brand-700 — large
+      "#a3260a", // brand-700 — large
     ],
     "circle-radius": [
       "step",
@@ -125,7 +125,7 @@ const clusterLayer = {
     "circle-opacity": 0.85,
     "circle-stroke-width": 2,
     "circle-stroke-color": "#ffffff",
-    "circle-stroke-opacity": 0.3,
+    "circle-stroke-opacity": 0.9,
   },
 }
 
@@ -151,13 +151,13 @@ const unclusteredPointLayer = {
     "circle-color": [
       "case",
       ["get", "isGuestSpot"],
-      "#d4d4d4", // guest-400 (silver) for guest spots
-      "#ee1c25", // brand-500 for primary / home base
+      "#3b3d3c", // guest-600 (graphite) for guest spots
+      "#e23a10", // brand-500 for primary / home base
     ],
     "circle-radius": 8,
     "circle-stroke-width": 2,
     "circle-stroke-color": "#ffffff",
-    "circle-stroke-opacity": 0.2,
+    "circle-stroke-opacity": 0.95,
   },
 }
 
@@ -202,7 +202,7 @@ function InstagramHandleLink({ handle }: { handle: string }) {
       href={instagramUrl(handle)}
       target="_blank"
       rel="noopener noreferrer"
-      className="block truncate text-xs text-muted-foreground transition-colors hover:text-brand-400 hover:underline"
+      className="block truncate text-xs text-muted-foreground transition-colors hover:text-brand-600 hover:underline"
       title={`Open @${handle} on Instagram`}
     >
       @{handle}
@@ -215,7 +215,7 @@ function LocationLine({ props }: { props: FeatureProps }) {
   return (
     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
       {isGuestSpot ? (
-        <Plane className="size-3 shrink-0 text-guest-400" />
+        <Plane className="size-3 shrink-0 text-guest-500" />
       ) : (
         <MapPin className="size-3 shrink-0 text-brand-500" />
       )}
@@ -266,7 +266,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
         {isPrimary && (
           <Badge
             variant="secondary"
-            className="border border-brand-500/20 bg-brand-500/10 text-brand-400"
+            className="border border-brand-500/20 bg-brand-500/10 text-brand-600"
           >
             Primary
           </Badge>
@@ -274,7 +274,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
         {isGuestSpot && (
           <Badge
             variant="secondary"
-            className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
+            className="border border-guest-500/20 bg-guest-500/10 text-guest-500"
           >
             Guest Spot
           </Badge>
@@ -285,7 +285,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
       {artistId && (
         <Link
           href={`/artists/${artistId}`}
-          className="mt-3 block text-xs font-medium text-brand-500 transition-colors hover:text-brand-400"
+          className="mt-3 block text-xs font-medium text-brand-500 transition-colors hover:text-brand-600"
         >
           View profile →
         </Link>
@@ -302,7 +302,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
     <div>
       <div className="flex items-start gap-3 border-b border-border/50 px-3.5 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-sm font-black uppercase leading-snug">{heading}</p>
+          <p className="truncate font-display text-sm leading-snug">{heading}</p>
           <p className="font-mono text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">{items.length} artists</p>
         </div>
         <CloseButton onClick={onClose} />
@@ -324,7 +324,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
                   {artistId ? (
                     <Link
                       href={`/artists/${artistId}`}
-                      className="truncate text-sm font-medium leading-snug transition-colors hover:text-brand-400"
+                      className="truncate text-sm font-medium leading-snug transition-colors hover:text-brand-600"
                     >
                       {displayNameOf(props)}
                     </Link>
@@ -335,7 +335,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
                   )}
                   {isGuestSpot && (
                     <Plane
-                      className="size-3 shrink-0 text-guest-400"
+                      className="size-3 shrink-0 text-guest-500"
                       aria-label="Guest spot"
                     />
                   )}
@@ -345,7 +345,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
               {artistId && (
                 <Link
                   href={`/artists/${artistId}`}
-                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-brand-400"
+                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-brand-600"
                   aria-label={`View ${displayNameOf(props)}'s profile`}
                 >
                   <ChevronRight className="size-4" />
@@ -501,7 +501,7 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
       <Map
         ref={localRef}
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle="mapbox://styles/mapbox/light-v11"
         initialViewState={{
           longitude: 0,
           latitude: 20,

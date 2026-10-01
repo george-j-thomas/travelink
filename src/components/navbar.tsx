@@ -76,7 +76,7 @@ export function Navbar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "relative px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-[0.14em] transition-colors",
+                  "relative px-3 py-1.5 font-wide text-[0.68rem] font-bold uppercase tracking-[0.12em] transition-colors",
                   isActive
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -85,11 +85,11 @@ export function Navbar() {
               >
                 {label}
 
-                {/* Active indicator — sheared red bar */}
+                {/* Active indicator — vermilion underline */}
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-x-1 -bottom-[calc(0.75rem+1px)] h-[3px] -skew-x-[30deg] bg-brand-500"
+                    className="absolute inset-x-1 -bottom-[calc(0.75rem+1px)] h-[3px] bg-brand-500"
                   />
                 )}
               </Link>

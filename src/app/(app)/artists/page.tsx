@@ -158,7 +158,7 @@ function EmptyState() {
 
       <Link href="/artists/import" className="mt-6">
         <Button
-          className="bg-brand-500 font-medium text-black hover:bg-brand-400"
+          className="bg-brand-500 font-medium text-white hover:bg-brand-600"
           size="lg"
         >
           <Upload className="size-4" />
@@ -238,7 +238,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
                 {primary && (
                   <Badge
                     variant="secondary"
-                    className="gap-1 border border-brand-500/20 bg-brand-500/10 text-brand-400"
+                    className="gap-1 border border-brand-500/20 bg-brand-500/10 text-brand-600"
                   >
                     <MapPin className="size-3" />
                     {locationLabel(primary)}
@@ -463,7 +463,7 @@ export default function ArtistsPage() {
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl font-black uppercase tracking-tight">
+        <h1 className="font-display text-2xl tracking-tight">
           Your Artists
           {!loading && artists.length > 0 && (
             <span className="ml-2 align-baseline text-base font-normal text-muted-foreground">
@@ -495,7 +495,7 @@ export default function ArtistsPage() {
             </Link>
 
             <Link href="/artists/import" className="shrink-0">
-              <Button className="bg-brand-500 font-medium text-black hover:bg-brand-400">
+              <Button className="bg-brand-500 font-medium text-white hover:bg-brand-600">
                 <Upload className="size-4" />
                 <span className="hidden sm:inline">Import Artists</span>
                 <span className="sm:hidden">Import</span>
@@ -544,7 +544,7 @@ export default function ArtistsPage() {
           <Button
             variant="link"
             size="sm"
-            className="mt-1 text-brand-500 hover:text-brand-400"
+            className="mt-1 text-brand-500 hover:text-brand-600"
             onClick={() => setSearch("")}
           >
             Clear search
