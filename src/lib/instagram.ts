@@ -17,9 +17,27 @@ export interface InstagramProfile {
   website: string | null
 }
 
+export interface InstagramMediaItem {
+  id: string
+  /** IMAGE | VIDEO | CAROUSEL_ALBUM */
+  mediaType: string
+  /** Display image URL — thumbnail for videos. Instagram CDN URLs expire. */
+  imageUrl: string
+  permalink: string
+  caption: string | null
+  timestamp: string
+}
+
 export interface BusinessDiscoveryResult {
   /** null when the account doesn't exist or isn't a public Business/Creator account. */
   profile: InstagramProfile | null
+  /** Highest rate-limit usage reported by Meta for this token, 0–100. */
+  usagePercent: number
+}
+
+export interface BusinessDiscoveryMediaResult {
+  /** null when the account doesn't exist or isn't a public Business/Creator account. */
+  media: InstagramMediaItem[] | null
   /** Highest rate-limit usage reported by Meta for this token, 0–100. */
   usagePercent: number
 }
@@ -31,6 +49,16 @@ interface GraphErrorDetail {
   error_subcode?: number
 }
 
+interface BusinessDiscoveryMediaNode {
+  id?: string
+  media_type?: string
+  media_url?: string
+  thumbnail_url?: string
+  permalink?: string
+  caption?: string
+  timestamp?: string
+}
+
 interface BusinessDiscoveryResponse {
   business_discovery?: {
     username?: string
@@ -38,6 +66,7 @@ interface BusinessDiscoveryResponse {
     biography?: string
     profile_picture_url?: string
     website?: string
+    media?: { data?: BusinessDiscoveryMediaNode[] }
   }
   error?: GraphErrorDetail
 }
@@ -175,30 +204,8 @@ export async function fetchArtistProfile(handle: string): Promise<BusinessDiscov
   const usage = parseUsageHeaders(response.headers)
   const body = (await response.json().catch(() => ({}))) as BusinessDiscoveryResponse
 
-  if (body.error || !response.ok) {
-    const err = body.error
-    const code = err?.code ?? 0
-
-    if (response.status === 429 || RATE_LIMIT_CODES.has(code) || isBucRateLimit(code)) {
-      throw new RateLimitError(
-        `Instagram API rate limit: ${err?.message ?? `HTTP ${response.status}`}`,
-        usage.regainAccessMs || DEFAULT_RATE_LIMIT_BACKOFF_MS
-      )
-    }
-    if (err?.error_subcode === USER_NOT_FOUND_SUBCODE || code === 110) {
-      return { profile: null, usagePercent: usage.percent }
-    }
-    if (AUTH_ERROR_CODES.has(code) || isPermissionError(code)) {
-      throw new BusinessDiscoveryConfigError(
-        `Instagram API token was rejected (code ${code}): ${err?.message ?? "unknown error"}. ` +
-          "Generate a new long-lived token and update INSTAGRAM_APP_ACCESS_TOKEN."
-      )
-    }
-    throw new Error(
-      err
-        ? `Instagram API error (code ${code}): ${err.message}`
-        : `Instagram API request failed with HTTP ${response.status}`
-    )
+  if (interpretBusinessDiscovery(body, response, usage) === "not_found") {
+    return { profile: null, usagePercent: usage.percent }
   }
 
   const bd = body.business_discovery
@@ -216,4 +223,104 @@ export async function fetchArtistProfile(handle: string): Promise<BusinessDiscov
     },
     usagePercent: usage.percent,
   }
+}
+
+/**
+ * Maps a Business Discovery response's error (if any) to an action:
+ * returns "ok" when the call succeeded, "not_found" for a missing/personal
+ * account, and throws {@link RateLimitError} / {@link BusinessDiscoveryConfigError}
+ * / a generic Error for everything else.
+ */
+function interpretBusinessDiscovery(
+  body: BusinessDiscoveryResponse,
+  response: Response,
+  usage: UsageStats
+): "ok" | "not_found" {
+  if (!body.error && response.ok) return "ok"
+
+  const err = body.error
+  const code = err?.code ?? 0
+
+  if (response.status === 429 || RATE_LIMIT_CODES.has(code) || isBucRateLimit(code)) {
+    throw new RateLimitError(
+      `Instagram API rate limit: ${err?.message ?? `HTTP ${response.status}`}`,
+      usage.regainAccessMs || DEFAULT_RATE_LIMIT_BACKOFF_MS
+    )
+  }
+  if (err?.error_subcode === USER_NOT_FOUND_SUBCODE || code === 110) {
+    return "not_found"
+  }
+  if (AUTH_ERROR_CODES.has(code) || isPermissionError(code)) {
+    throw new BusinessDiscoveryConfigError(
+      `Instagram API token was rejected (code ${code}): ${err?.message ?? "unknown error"}. ` +
+        "Generate a new long-lived token and update INSTAGRAM_APP_ACCESS_TOKEN."
+    )
+  }
+  throw new Error(
+    err
+      ? `Instagram API error (code ${code}): ${err.message}`
+      : `Instagram API request failed with HTTP ${response.status}`
+  )
+}
+
+/**
+ * Fetches a Business/Creator account's recent posts via Business Discovery's
+ * media edge. Returns an image URL per post (the thumbnail for videos). URLs
+ * are Instagram CDN links that expire after a few hours.
+ *
+ * @throws {BusinessDiscoveryConfigError} token missing, expired, or lacking permission
+ * @throws {RateLimitError} Meta is throttling this token
+ */
+export async function fetchArtistMedia(
+  handle: string,
+  limit = 12
+): Promise<BusinessDiscoveryMediaResult> {
+  const normalized = normalizeHandle(handle)
+  if (!isValidHandle(normalized)) {
+    return { media: null, usagePercent: 0 }
+  }
+
+  const { accessToken, appUserId } = getConfig()
+  const count = Math.max(1, Math.min(limit, 50))
+
+  const url = new URL(`${GRAPH_API_BASE}/${encodeURIComponent(appUserId)}`)
+  url.searchParams.set(
+    "fields",
+    `business_discovery.username(${normalized}){media.limit(${count})` +
+      `{id,media_type,media_url,thumbnail_url,permalink,caption,timestamp}}`
+  )
+  url.searchParams.set("access_token", accessToken)
+
+  const response = await fetch(url, { cache: "no-store" })
+  const usage = parseUsageHeaders(response.headers)
+  const body = (await response.json().catch(() => ({}))) as BusinessDiscoveryResponse
+
+  if (interpretBusinessDiscovery(body, response, usage) === "not_found") {
+    return { media: null, usagePercent: usage.percent }
+  }
+
+  const bd = body.business_discovery
+  if (!bd) {
+    return { media: null, usagePercent: usage.percent }
+  }
+
+  const nodes = bd.media?.data ?? []
+  const media: InstagramMediaItem[] = nodes
+    .map((node) => {
+      // Videos expose the frame as thumbnail_url; images/albums use media_url.
+      const imageUrl =
+        node.media_type === "VIDEO" ? node.thumbnail_url : node.media_url
+      if (!node.id || !imageUrl || !node.permalink || !node.timestamp) return null
+      return {
+        id: node.id,
+        mediaType: node.media_type || "IMAGE",
+        imageUrl,
+        permalink: node.permalink,
+        caption: node.caption?.trim() || null,
+        timestamp: node.timestamp,
+      }
+    })
+    .filter((item): item is InstagramMediaItem => item !== null)
+
+  return { media, usagePercent: usage.percent }
 }

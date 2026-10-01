@@ -156,22 +156,6 @@ export default function MapPage() {
     setActiveFilter(filter)
   }, [])
 
-  const handleLocateMe = useCallback(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        mapRef.current?.flyTo({
-          center: [pos.coords.longitude, pos.coords.latitude],
-          zoom: 12,
-          duration: 2000,
-        })
-      },
-      () => {
-        // Silently handle permission denial
-      },
-    )
-  }, [])
-
   const handleSelectFeature = useCallback((feature: GeoJSON.Feature) => {
     const coords = (feature.geometry as GeoJSON.Point).coordinates
     mapRef.current?.flyTo({
@@ -204,7 +188,6 @@ export default function MapPage() {
       <MapFilters
         activeFilter={activeFilter}
         onFilterChange={handleFilterChange}
-        onLocateMe={handleLocateMe}
       />
 
       <MapSidebar

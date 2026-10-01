@@ -79,14 +79,42 @@ model Artist {
   fetchError       String?   @map("fetch_error")
   // Set when a request claims the artist, so concurrent tabs don't fetch it twice
   fetchClaimedAt   DateTime? @map("fetch_claimed_at")
+  // Recent-work media queue — mirrors the bio queue but for Instagram posts
+  mediaLastFetchedAt DateTime? @map("media_last_fetched_at")
+  mediaClaimedAt     DateTime? @map("media_claimed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   users            UserArtist[]
   locations        ArtistLocation[]
+  media            ArtistMedia[]
 
   @@index([fetchStatus])
   @@map("artists")
+}
+
+// Recent Instagram posts for an artist, fetched via Business Discovery's media
+// edge. Powers the "Recent work" feed. Instagram CDN URLs expire after a few
+// hours, so rows are refreshed (upserted) whenever the artist's media is stale.
+model ArtistMedia {
+  id         String   @id @default(cuid())
+  artistId   String   @map("artist_id")
+  // Instagram's media id — stable across refreshes
+  igMediaId  String   @map("ig_media_id")
+  // IMAGE | VIDEO | CAROUSEL_ALBUM
+  mediaType  String   @map("media_type")
+  // Display image URL (thumbnail for videos). Expires — refreshed on fetch.
+  imageUrl   String   @map("image_url")
+  permalink  String
+  caption    String?
+  takenAt    DateTime @map("taken_at")
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, igMediaId])
+  @@index([artistId])
+  @@map("artist_media")
 }
 
 model UserArtist {

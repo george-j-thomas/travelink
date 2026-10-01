@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 
 export default async function Home() {
   const session = await getSession();
-  if (session) redirect("/artists");
+  if (session) redirect("/map");
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center bg-background px-4">
