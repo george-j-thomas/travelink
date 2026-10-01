@@ -9,8 +9,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-chakra);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-dela);
-  --font-display: var(--font-dela);
+  --font-heading: var(--font-zen);
+  --font-display: var(--font-zen);
 
   /* Designers Republic / Wipeout palette — pale grey paper, black ink,
      vermilion accent used sparingly, graphite for guest spots.
@@ -147,11 +147,32 @@ html .mapboxgl-map {
 
 /* ── Designers Republic / Wipeout utilities ─────────────────── */
 
-/* Dela Gothic One ships a single weight; never fake-bold it */
+/* Zen Dots ships one weight; a same-colour outline (--ink) fattens it
+   toward the WBCD poster lettering. Never use font-bold on it. */
 @utility font-display {
+  font-family: var(--font-zen), ui-sans-serif, sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.015em;
+  /* Fades out on small text, where an outline would clog the counters */
+  -webkit-text-stroke: max(0px, calc(var(--ink, 0.05em) - 0.7px)) currentColor;
+  paint-order: stroke fill;
+}
+
+/* Japanese text: Zen Dots has no katakana, Dela Gothic One does */
+@utility font-jp {
   font-family: var(--font-dela), ui-sans-serif, sans-serif;
   font-weight: 400;
   font-synthesis: none;
+}
+
+/* Hollow display type (standalone; don't combine with font-display) */
+@utility dr-outline {
+  font-family: var(--font-zen), ui-sans-serif, sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  color: transparent;
+  -webkit-text-stroke: var(--outline, 1px) var(--outline-c, var(--foreground));
 }
 
 /* Wide label face: Saira stretched to its 125% width axis */
@@ -204,6 +225,18 @@ html .mapboxgl-map {
   }
 }
 
+@keyframes dr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dr-marquee-reverse {
+  from {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes dr-blink {
   50% {
     opacity: 0;
@@ -223,6 +256,15 @@ html .mapboxgl-map {
   animation: dr-draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) both;
 }
 
+@utility animate-dr-spin {
+  animation: dr-spin 24s linear infinite;
+  transform-origin: center;
+}
+
+@utility animate-dr-marquee-reverse {
+  animation: dr-marquee-reverse 60s linear infinite;
+}
+
 @utility animate-dr-blink {
   animation: dr-blink 1.2s steps(1, end) infinite;
 }
@@ -231,7 +273,9 @@ html .mapboxgl-map {
   .animate-dr-rise,
   .animate-dr-marquee,
   .animate-dr-draw,
-  .animate-dr-blink {
+  .animate-dr-blink,
+  .animate-dr-spin,
+  .animate-dr-marquee-reverse {
     animation: none;
   }
 }

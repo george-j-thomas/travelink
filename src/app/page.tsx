@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LocateFixed, Lock, MapPin, Plane, ScanText } from "lucide-react";
+import { MapPin, ScanText } from "lucide-react";
 
 import { getSession } from "@/lib/auth";
 import { InstagramIcon } from "@/components/icons/instagram";
@@ -10,13 +10,16 @@ import {
   Chevrons,
   Glyph,
   type GlyphKind,
+  Halftone,
   Plus,
   Readout,
   RoutingLines,
   Ruler,
   SpeedLines,
+  Stamp,
   Tag,
   Warn,
+  WaveDisc,
 } from "@/components/brand/marks";
 
 const MARQUEE = [
@@ -55,25 +58,13 @@ const STEPS = [
   },
 ];
 
-const FEATURES = [
-  {
-    code: "W-01",
-    icon: Plane,
-    title: "Guest spot radar",
-    body: "Guest spots show up in graphite with their dates, so you can see who's passing through your city.",
-  },
-  {
-    code: "W-02",
-    icon: LocateFixed,
-    title: "Near me",
-    body: "One tap centres the map on you and shows which of your artists are within reach.",
-  },
-  {
-    code: "W-03",
-    icon: Lock,
-    title: "Invite only",
-    body: "Your list is yours. Travelink is a small, private crew. You join with an invite from a friend.",
-  },
+const CITIES = [
+  { code: "BER", name: "berlin", lat: "52.52°N", lng: "13.40°E" },
+  { code: "TYO", name: "tokyo", lat: "35.68°N", lng: "139.69°E" },
+  { code: "LIS", name: "lisbon", lat: "38.72°N", lng: "9.14°W" },
+  { code: "CDMX", name: "mexico city", lat: "19.43°N", lng: "99.13°W" },
+  { code: "SEL", name: "seoul", lat: "37.57°N", lng: "126.98°E" },
+  { code: "LAX", name: "los angeles", lat: "34.05°N", lng: "118.24°W" },
 ];
 
 export default async function Home() {
@@ -90,29 +81,63 @@ export default async function Home() {
           </Link>
           <div className="hidden items-end gap-6 md:flex">
             <Ruler />
-            <Tag square="bg-foreground">File under: tattoo artists</Tag>
+            <Tag square="bg-foreground">52.52°N 13.40°E</Tag>
+            <Halftone cols={14} rows={3} className="hidden h-3 w-auto text-foreground/70 lg:block" />
           </div>
           <LoginButton size="sm" />
         </div>
       </header>
 
+      {/* ── Coordinate ticker ───────────────────────────────────── */}
+      <div aria-hidden="true" className="overflow-hidden bg-foreground py-1.5 text-background">
+        <div className="flex w-max animate-dr-marquee-reverse">
+          {[0, 1].map((copy) => (
+            <div key={copy} className="flex shrink-0 items-center">
+              {CITIES.map((c) => (
+                <span key={c.code} className="flex items-center gap-3 pr-6 font-mono text-[0.6rem] tracking-[0.2em] whitespace-nowrap uppercase">
+                  <span className="size-1.5 bg-brand-500" />
+                  <span className="font-bold">{c.code}</span>
+                  <span className="opacity-60">{c.lat} {c.lng}</span>
+                  <span className="opacity-40">{"///"}</span>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── Hero ────────────────────────────────────────────────── */}
       <section className="relative">
         <RoutingLines className="hidden text-foreground/30 lg:block" />
+        <span aria-hidden="true" className="dr-outline pointer-events-none absolute right-[1%] bottom-[-2%] hidden text-[12rem] leading-none select-none [--outline-c:rgb(18_19_19/0.12)] lg:block">
+          001
+        </span>
+        <Halftone className="absolute top-5 right-[3%] h-8 w-auto text-foreground/15 sm:h-14" />
         <Plus className="absolute top-10 right-[8%] hidden size-4 text-foreground/50 sm:block" />
         <Plus className="absolute bottom-16 left-[46%] hidden size-4 text-foreground/50 lg:block" />
+        <Plus className="absolute top-[42%] left-[3%] hidden size-3 text-foreground/50 lg:block" />
+        <Plus className="absolute top-[18%] left-[48%] hidden size-3 text-brand-500 lg:block" />
+        <Chevrons count={5} className="absolute bottom-10 left-[3%] hidden h-2.5 w-auto text-foreground/40 lg:block" />
+        <span
+          aria-hidden="true"
+          className="absolute top-1/2 left-3 hidden -translate-y-1/2 font-mono text-[0.55rem] tracking-[0.3em] text-muted-foreground uppercase [writing-mode:vertical-rl] xl:block"
+        >
+          TRV/INK — 001 — 52.52N 13.40E — 35.68N 139.69E
+        </span>
 
         <div className="relative mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-16 px-5 pt-14 pb-24 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:pt-20 lg:pb-28">
           <div>
             <div className="animate-dr-rise flex flex-wrap items-center gap-3">
               <Tag className="bg-background">
-                <span className="font-display text-[0.7rem] tracking-[0.12em]">トラベリンク</span>
+                <span className="font-jp text-[0.7rem] tracking-[0.12em]">トラベリンク</span>
               </Tag>
               <Readout>{"//:001"}</Readout>
               <Warn className="h-3.5 w-4 text-brand-500" />
+              <span className="h-px w-10 bg-foreground/40" />
+              <Readout className="text-foreground">Rev. 02</Readout>
             </div>
 
-            <h1 className="animate-dr-rise mt-7 font-display text-[3.1rem] leading-[0.92] tracking-tight lowercase [animation-delay:80ms] sm:text-7xl lg:text-[5.4rem]">
+            <h1 className="animate-dr-rise mt-7 font-display text-[2.7rem] leading-[0.98] lowercase [animation-delay:80ms] sm:text-7xl lg:text-[5.2rem]">
               your
               <br />
               artists,
@@ -171,7 +196,14 @@ export default async function Home() {
 
       {/* ── How it works ────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8 lg:py-28">
-        <SectionHeading code="//:002" title="three steps to your map" />
+        <Plus className="absolute top-10 right-5 size-4 text-foreground/50 sm:right-8" />
+        <div className="flex flex-wrap items-end justify-between gap-8">
+          <SectionHeading code="//:002" title="three steps to your map" />
+          <div className="hidden flex-col items-end gap-3 md:flex">
+            <Halftone cols={18} rows={4} className="h-6 w-auto text-foreground/30" />
+            <Ruler labels={["01", "02", "03", "G.0"]} />
+          </div>
+        </div>
 
         <ol className="mt-14 grid gap-5 md:grid-cols-3">
           {STEPS.map((step, i) => (
@@ -185,37 +217,51 @@ export default async function Home() {
                 <h3 className="font-wide text-sm font-bold uppercase tracking-[0.06em]">{step.title}</h3>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-              <Readout className="mt-6 block">Step 0{i + 1} / 03</Readout>
+              <div className="mt-6 flex items-center gap-3">
+                <Readout>Step 0{i + 1} / 03</Readout>
+                <span className="h-px flex-1 bg-foreground/20" />
+                <Chevrons count={i + 1} className="h-2 w-auto text-brand-500" />
+              </div>
             </li>
           ))}
         </ol>
       </section>
 
-      {/* ── Features ────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-y border-foreground/15 bg-paper-dark">
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-5 py-24 sm:px-8 lg:grid-cols-[1fr_1.5fr] lg:py-28">
-          <div>
-            <SectionHeading code="//:003" title="never miss a guest spot" />
-            <p className="mt-6 max-w-sm text-muted-foreground">
-              Built for people who plan trips around tattoos, and for catching
-              the artists who come to you.
-            </p>
+      {/* ── City board ──────────────────────────────────────────── */}
+      <section aria-hidden="true" className="relative overflow-hidden border-y border-foreground/15 bg-paper-dark">
+        <RoutingLines layout="band" className="hidden text-foreground/25 md:block" />
+        <Halftone className="absolute -bottom-2 left-0 h-24 w-auto text-foreground/10" />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:py-24">
+          <div className="relative mx-auto w-full max-w-[340px]">
+            <div className="mb-3 flex items-center justify-between">
+              <Readout className="text-foreground">{"//:003"}</Readout>
+              <Readout>Fig. 02</Readout>
+            </div>
+            <WaveDisc className="w-full">
+              <span className="font-jp text-[2.1rem] leading-none text-brand-500 sm:text-[2.5rem]">トラベリンク</span>
+            </WaveDisc>
+            <Stamp id="stamp-city" text="Travelink • artist map • rev 02 • " className="absolute -right-4 -bottom-6 size-24 bg-paper-dark text-foreground sm:-right-10">
+              <Glyph kind="plus" className="size-6 text-brand-500" />
+            </Stamp>
+            <Plus className="absolute -top-8 -left-6 size-4 text-foreground/60" />
           </div>
 
-          <ul className="border-t border-foreground/25">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-1 border-b border-foreground/25 py-6 sm:grid-cols-[4.5rem_auto_1fr]">
-                <Readout className="hidden pt-1 text-foreground sm:block">{f.code}</Readout>
-                <span className="flex size-9 items-center justify-center rounded-full border border-foreground/60">
-                  <f.icon className="size-4" />
+          <ol className="border-t-2 border-foreground">
+            {CITIES.map((c, i) => (
+              <li key={c.code} className="group grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-foreground/25 py-2.5 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto] sm:gap-5">
+                <Readout className="text-foreground">{String(i + 1).padStart(2, "0")}</Readout>
+                <span className={cn("truncate font-display text-2xl leading-none lowercase sm:text-4xl", i === 0 && "text-brand-500")}>
+                  {c.name}
                 </span>
-                <div>
-                  <h3 className="font-wide text-sm font-bold uppercase tracking-[0.06em]">{f.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-                </div>
+                <span className="flex flex-col items-end gap-1 text-right">
+                  <Readout className="text-foreground">{c.code}</Readout>
+                  <Readout className="hidden sm:block">
+                    {c.lat} {c.lng}
+                  </Readout>
+                </span>
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 
@@ -224,7 +270,7 @@ export default async function Home() {
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:items-end">
           <div>
             <Readout>{"//:004"}</Readout>
-            <h2 className="mt-5 font-display text-[2.2rem] leading-[0.95] tracking-tight lowercase sm:text-6xl">
+            <h2 className="mt-5 font-display text-[1.9rem] leading-[1.02] lowercase sm:text-5xl">
               know where your
               <br />
               next <span className="text-brand-500">tattoo</span> is.
@@ -242,9 +288,17 @@ export default async function Home() {
           </div>
         </div>
 
+        <div aria-hidden="true" className="mt-20 flex items-end justify-between gap-4 overflow-hidden">
+          <span className="dr-outline text-[13vw] leading-[0.8] lowercase [--outline:1.5px] lg:text-[9.5rem]">travelink</span>
+          <span className="hidden flex-col items-end gap-2 pb-2 md:flex">
+            <Chevrons count={4} className="h-3 w-auto text-brand-500" />
+            <Readout>{"//:005"}</Readout>
+          </span>
+        </div>
+
         {/* Wipeout-style vermilion tab */}
-        <div aria-hidden="true" className="mt-20 flex items-center gap-5 overflow-hidden rounded-xl bg-brand-500 px-6 py-5 text-white sm:px-8">
-          <span className="font-display text-2xl whitespace-nowrap sm:text-4xl">旅するインク</span>
+        <div aria-hidden="true" className="mt-4 flex items-center gap-5 overflow-hidden rounded-xl bg-brand-500 px-6 py-5 text-white sm:px-8">
+          <span className="font-jp text-2xl whitespace-nowrap sm:text-4xl">旅するインク</span>
           <span className="hidden font-mono text-[0.65rem] tracking-[0.2em] whitespace-nowrap uppercase sm:block">
             {"(travel>ink>>)"}
           </span>
@@ -259,7 +313,7 @@ export default async function Home() {
       <footer className="border-t border-foreground/15">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row sm:px-8">
           <BrandMark className="text-base" />
-          <Readout className="text-center">Built for people who travel for ink</Readout>
+          <Readout className="text-center">© 2026 Travelink</Readout>
           <Readout>{"//:009"}</Readout>
         </div>
       </footer>
@@ -311,7 +365,7 @@ function SectionHeading({ code, title }: { code: string; title: string }) {
         <Readout className="text-foreground">{code}</Readout>
         <span className="h-px w-16 bg-foreground/30" />
       </div>
-      <h2 className="mt-4 font-display text-3xl leading-none tracking-tight lowercase sm:text-5xl">{title}</h2>
+      <h2 className="mt-4 font-display text-[1.7rem] leading-[1.02] lowercase sm:text-5xl">{title}</h2>
     </div>
   );
 }
