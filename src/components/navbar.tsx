@@ -25,7 +25,6 @@ import {
 const navLinks = [
   { href: "/map", label: "Map" },
   { href: "/artists", label: "Artists" },
-  { href: "/work", label: "Recent work" },
 ] as const
 
 function getUserInitials(name?: string | null, email?: string | null): string {
