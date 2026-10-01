@@ -6,12 +6,9 @@ import { prisma } from "@/lib/db"
  * misbehaving user from draining them in a day.
  *
  * - bio_fetch: one bio lookup + Claude parse + geocodes
- * - search / profile: paid Instagram provider calls
  */
 export const DAILY_LIMITS = {
   bio_fetch: { global: 1000, perUser: 500 },
-  search: { global: 2000, perUser: 300 },
-  profile: { global: 1000, perUser: 400 },
 } as const
 
 export type UsageKind = keyof typeof DAILY_LIMITS

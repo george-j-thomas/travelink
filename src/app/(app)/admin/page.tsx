@@ -61,8 +61,6 @@ interface UsageRow {
 
 const USAGE_LABELS: Record<string, string> = {
   bio_fetch: "Bio lookups",
-  search: "Paid searches",
-  profile: "Paid profile lookups",
 }
 
 const EXPIRY_OPTIONS = [1, 7, 30] as const
@@ -263,7 +261,7 @@ export default function AdminPage() {
           </CardTitle>
           <CardDescription>Daily caps reset at midnight UTC.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
+        <CardContent className="grid gap-3">
           {usage.map((u) => {
             const pct = Math.min(100, Math.round((u.count / u.limit) * 100))
             return (

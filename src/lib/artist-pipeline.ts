@@ -3,8 +3,8 @@
 // Adding artists and fetching their bios are separate steps:
 //   1. trackArtists() saves stub Artist rows + UserArtist links immediately — no
 //      external calls, so a selection is never lost to a rate limit.
-//   2. fetchArtistBio() fills a stub in later: Business Discovery (free) → paid
-//      provider if BD has no profile → Claude bio parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
+//   2. fetchArtistBio() fills a stub in later: Business Discovery → Claude bio
+//      parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
 //      the browser-driven loop can stop and resume at any time.
 
 import type { Prisma } from "@prisma/client"
@@ -16,13 +16,7 @@ import {
   isValidHandle,
   normalizeHandle,
   RateLimitError,
-  type InstagramProfile,
 } from "@/lib/instagram"
-import {
-  fetchProviderProfile,
-  isProviderConfigured,
-  ProviderConfigError,
-} from "@/lib/instagram-provider"
 import { parseBioLocations } from "@/lib/bio-parser"
 import { BudgetExceededError, reserveUsage } from "@/lib/usage"
 import { geocodeLocation } from "@/lib/geocoding"
@@ -87,58 +81,9 @@ function cleanUrl(value: string | null | undefined): string | null {
   }
 }
 
-/** True when at least one bio source is set up. */
+/** True when Business Discovery, the bio source, is set up. */
 export function isBioLookupConfigured(): boolean {
-  return isBusinessDiscoveryConfigured() || isProviderConfigured()
-}
-
-interface SourcedProfile {
-  profile: InstagramProfile
-  source: "business_discovery" | "provider"
-  accountType: string
-}
-
-/**
- * Business Discovery first (free, Business/Creator accounts only), then the
- * paid provider for anything BD can't see. Each call is budgeted.
- */
-async function lookupProfile(
-  handle: string,
-  userId: string
-): Promise<{ found: SourcedProfile | null; usagePercent: number; providerDown: boolean }> {
-  let usagePercent = 0
-  const bdConfigured = isBusinessDiscoveryConfigured()
-
-  if (bdConfigured) {
-    const result = await fetchArtistProfile(handle)
-    usagePercent = result.usagePercent
-    if (result.profile) {
-      return {
-        found: { profile: result.profile, source: "business_discovery", accountType: "business" },
-        usagePercent,
-        providerDown: false,
-      }
-    }
-  }
-
-  if (!isProviderConfigured()) return { found: null, usagePercent, providerDown: false }
-
-  await reserveUsage("profile", userId)
-  try {
-    const profile = await fetchProviderProfile(handle)
-    return {
-      found: profile ? { profile, source: "provider", accountType: profile.accountType } : null,
-      usagePercent,
-      providerDown: false,
-    }
-  } catch (err) {
-    // With BD working, a broken fallback shouldn't stall the whole queue
-    if (err instanceof ProviderConfigError && bdConfigured) {
-      console.error("HikerAPI config error (falling back to unavailable):", err.message)
-      return { found: null, usagePercent, providerDown: true }
-    }
-    throw err
-  }
+  return isBusinessDiscoveryConfigured()
 }
 
 function claimableWhere(now: Date): Prisma.ArtistWhereInput {
@@ -210,7 +155,6 @@ export async function trackArtists(userId: string, accounts: ArtistHint[]): Prom
  * @param userId whose daily budget the lookup counts against
  * @throws {RateLimitError} Instagram is throttling — the artist stays pending
  * @throws {BusinessDiscoveryConfigError} token missing/expired — the artist stays pending
- * @throws {ProviderConfigError} provider is the only source and its key/balance is bad — stays pending
  * @throws {BudgetExceededError} daily limit reached — the artist stays pending
  */
 export async function fetchArtistBio(artistId: string, userId: string): Promise<FetchBioResult> {
@@ -230,28 +174,25 @@ export async function fetchArtistBio(artistId: string, userId: string): Promise<
 
   try {
     await reserveUsage("bio_fetch", userId)
-    const lookup = await lookupProfile(artist.instagramHandle, userId)
-    usagePercent = lookup.usagePercent
+    const result = await fetchArtistProfile(artist.instagramHandle)
+    usagePercent = result.usagePercent
+    const profile = result.profile
 
-    if (!lookup.found) {
-      const providerTried = isProviderConfigured() && !lookup.providerDown
+    if (!profile) {
       await prisma.artist.update({
         where: { id: artistId },
         data: {
           fetchStatus: "unavailable",
           fetchAttempts: { increment: 1 },
-          fetchError: lookup.providerDown ? "Paid lookup was unavailable" : null,
+          fetchError: null,
           fetchClaimedAt: null,
         },
       })
       warnings.push(
-        providerTried
-          ? "Couldn't find this Instagram account. Check the handle, or add a location manually."
-          : "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location manually."
+        "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location manually."
       )
       return { outcome: "unavailable", usagePercent, warnings }
     }
-    const { profile, source, accountType } = lookup.found
 
     // Parse + geocode before writing, so a Claude/Mapbox failure retries cleanly
     const parsed = profile.biography ? await parseBioLocations(profile.biography) : []
@@ -295,8 +236,8 @@ export async function fetchArtistBio(artistId: string, userId: string): Promise<
           displayName: profile.name ?? artist.displayName,
           bio: profile.biography,
           profilePicUrl: profile.profilePictureUrl ?? artist.profilePicUrl,
-          accountType,
-          fetchSource: source,
+          accountType: "business",
+          fetchSource: "business_discovery",
           bioLastFetchedAt: new Date(),
           fetchStatus: "fetched",
           fetchAttempts: { increment: 1 },
@@ -311,7 +252,6 @@ export async function fetchArtistBio(artistId: string, userId: string): Promise<
     if (
       err instanceof RateLimitError ||
       err instanceof BusinessDiscoveryConfigError ||
-      err instanceof ProviderConfigError ||
       err instanceof BudgetExceededError
     ) {
       // Not the artist's fault — release the claim without using up an attempt
@@ -349,7 +289,6 @@ export function countPendingArtists(userId: string): Promise<number> {
  *
  * @throws {RateLimitError}
  * @throws {BusinessDiscoveryConfigError}
- * @throws {ProviderConfigError}
  * @throws {BudgetExceededError}
  */
 export async function processNextPendingArtist(userId: string): Promise<{
@@ -418,7 +357,7 @@ export async function addArtistByHandle(userId: string, hint: ArtistHint): Promi
           warnings.push("Saved. Instagram is rate limiting right now — the bio will be fetched automatically later.")
         } else if (err instanceof BudgetExceededError) {
           warnings.push(`Saved. ${err.message} The bio will be fetched after that.`)
-        } else if (err instanceof BusinessDiscoveryConfigError || err instanceof ProviderConfigError) {
+        } else if (err instanceof BusinessDiscoveryConfigError) {
           console.error("Bio lookup config error:", err.message)
           warnings.push("Saved. Instagram bio lookup is misconfigured, so the bio will be fetched once it's fixed.")
         } else {
