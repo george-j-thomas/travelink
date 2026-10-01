@@ -30,6 +30,7 @@ export function serializeArtist(
     bio: artist.bio,
     profilePicUrl: artist.profilePicUrl,
     accountType: artist.accountType,
+    bioLastFetchedAt: artist.bioLastFetchedAt,
     fetchStatus: artist.fetchStatus as FetchStatus,
     fetchError: artist.fetchError,
     notes,

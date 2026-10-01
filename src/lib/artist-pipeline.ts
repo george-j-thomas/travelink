@@ -6,6 +6,9 @@
 //   2. fetchArtistBio() fills a stub in later: Business Discovery → Claude bio
 //      parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
 //      the browser-driven loop can stop and resume at any time.
+//
+// A bio is fetched once. It's only fetched again when a user asks for it with
+// refreshArtistBio().
 
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
@@ -27,6 +30,10 @@ import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
 // ---------------------------------------------------------------------------
 
 export const MAX_TRACK_BATCH = 2000
+/** Instagram's cap on how many accounts one user can follow. */
+export const MAX_ACCOUNT_TYPE_LOOKUP = 7500
+/** Refreshing a bio again within this window needs the user to confirm. */
+export const REFRESH_CONFIRM_WINDOW_MS = 72 * 60 * 60_000
 const MAX_FETCH_ATTEMPTS = 3
 /** A claim older than this is assumed abandoned (request timed out mid-fetch). */
 const CLAIM_TTL_MS = 3 * 60_000
@@ -55,6 +62,25 @@ export interface FetchBioResult {
   usagePercent: number
   warnings: string[]
 }
+
+interface ClaimedFetchResult extends FetchBioResult {
+  outcome: Exclude<FetchOutcome, "skipped">
+}
+
+/**
+ * "queued": Instagram is throttling or a budget ran out, so the artist was left
+ * pending for the background queue. "in_progress": another request is fetching it.
+ */
+export type RefreshOutcome = Exclude<FetchOutcome, "skipped"> | "queued" | "in_progress"
+
+export interface RefreshResult {
+  artist: SerializedArtist
+  outcome: RefreshOutcome
+  warnings: string[]
+}
+
+/** What earlier bio lookups (by any user) found out about an Instagram account. */
+export type KnownAccountType = "business" | "personal"
 
 export interface AddArtistResult {
   artist: SerializedArtist
@@ -86,11 +112,15 @@ export function isBioLookupConfigured(): boolean {
   return isBusinessDiscoveryConfigured()
 }
 
-function claimableWhere(now: Date): Prisma.ArtistWhereInput {
+/** No other request is mid-fetch (claims past their TTL were abandoned). */
+function unclaimedWhere(now: Date): Prisma.ArtistWhereInput {
   return {
-    fetchStatus: "pending",
     OR: [{ fetchClaimedAt: null }, { fetchClaimedAt: { lt: new Date(now.getTime() - CLAIM_TTL_MS) } }],
   }
+}
+
+function claimableWhere(now: Date): Prisma.ArtistWhereInput {
+  return { fetchStatus: "pending", ...unclaimedWhere(now) }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +195,11 @@ export async function fetchArtistBio(artistId: string, userId: string): Promise<
   })
   if (claimed === 0) return { outcome: "skipped", usagePercent: 0, warnings: [] }
 
+  return runClaimedFetch(artistId, userId)
+}
+
+/** The fetch itself, for an artist this request has already claimed. Always releases the claim. */
+async function runClaimedFetch(artistId: string, userId: string): Promise<ClaimedFetchResult> {
   const artist = await prisma.artist.findUniqueOrThrow({
     where: { id: artistId },
     include: { locations: true },
@@ -182,14 +217,19 @@ export async function fetchArtistBio(artistId: string, userId: string): Promise<
       await prisma.artist.update({
         where: { id: artistId },
         data: {
+          accountType: "personal",
+          bioLastFetchedAt: new Date(),
           fetchStatus: "unavailable",
           fetchAttempts: { increment: 1 },
           fetchError: null,
           fetchClaimedAt: null,
         },
       })
+      // A refresh can find that an account stopped being a business account; keep what it had
       warnings.push(
-        "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location manually."
+        artist.bio
+          ? "Instagram no longer shares this account's bio. It may have switched to a personal account or changed its handle. The bio and locations from the last fetch were kept."
+          : "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location manually."
       )
       return { outcome: "unavailable", usagePercent, warnings }
     }
@@ -316,6 +356,102 @@ async function loadUserArtist(userId: string, artistId: string): Promise<Seriali
 }
 
 // ---------------------------------------------------------------------------
+// Manual refresh (artist page)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches a tracked artist's bio again right away, whatever its status. If
+ * Instagram is throttling (or a budget is used up) the artist is left pending,
+ * so the background queue refreshes it later.
+ *
+ * @param force refresh even if the bio was fetched within REFRESH_CONFIRM_WINDOW_MS
+ * @throws {ArtistNotFoundError} the user doesn't track this artist
+ * @throws {BusinessDiscoveryConfigError} bio lookup isn't set up — nothing was changed
+ * @throws {RecentlyRefreshedError} fetched recently and `force` isn't set — nothing was changed
+ */
+export async function refreshArtistBio(
+  userId: string,
+  artistId: string,
+  { force = false }: { force?: boolean } = {}
+): Promise<RefreshResult> {
+  const link = await prisma.userArtist.findUnique({
+    where: { userId_artistId: { userId, artistId } },
+    select: { artist: { select: { bioLastFetchedAt: true } } },
+  })
+  if (!link) throw new ArtistNotFoundError()
+  if (!isBioLookupConfigured()) {
+    throw new BusinessDiscoveryConfigError("Instagram bio lookup isn't set up, so bios can't be refreshed.")
+  }
+
+  const now = new Date()
+  const lastFetchedAt = link.artist.bioLastFetchedAt
+  if (!force && lastFetchedAt && now.getTime() - lastFetchedAt.getTime() < REFRESH_CONFIRM_WINDOW_MS) {
+    throw new RecentlyRefreshedError(lastFetchedAt)
+  }
+
+  // Back in the queue and claimed in one step, unless another request is mid-fetch
+  const { count: claimed } = await prisma.artist.updateMany({
+    where: { id: artistId, ...unclaimedWhere(now) },
+    data: { fetchStatus: "pending", fetchAttempts: 0, fetchError: null, fetchClaimedAt: now },
+  })
+
+  let outcome: RefreshOutcome = "in_progress"
+  const warnings: string[] = []
+  if (claimed > 0) {
+    try {
+      const result = await runClaimedFetch(artistId, userId)
+      outcome = result.outcome
+      warnings.push(...result.warnings)
+    } catch (err) {
+      outcome = "queued"
+      if (err instanceof RateLimitError) {
+        warnings.push("Instagram is rate limiting right now, so the bio will refresh automatically later.")
+      } else if (err instanceof BudgetExceededError) {
+        warnings.push(`${err.message} The bio will refresh after that.`)
+      } else if (err instanceof BusinessDiscoveryConfigError) {
+        console.error("Bio lookup config error:", err.message)
+        warnings.push("Instagram bio lookup is misconfigured, so the bio will refresh once it's fixed.")
+      } else {
+        throw err
+      }
+    }
+  }
+
+  const artist = await loadUserArtist(userId, artistId)
+  if (!artist) throw new ArtistNotFoundError()
+  return { artist, outcome, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// Account types (import page)
+// ---------------------------------------------------------------------------
+
+/**
+ * Account types already known from earlier bio lookups. Artists are shared, so
+ * any user's lookup counts. Handles that were never looked up are left out —
+ * this makes no Instagram calls.
+ */
+export async function getKnownAccountTypes(handles: string[]): Promise<Record<string, KnownAccountType>> {
+  const normalized = [...new Set(handles.map(normalizeHandle))].filter(isValidHandle)
+  if (normalized.length === 0) return {}
+
+  const artists = await prisma.artist.findMany({
+    where: { instagramHandle: { in: normalized } },
+    select: { instagramHandle: true, fetchStatus: true, accountType: true },
+  })
+
+  const types: Record<string, KnownAccountType> = {}
+  for (const a of artists) {
+    // The latest lookup result wins; accountType covers artists queued for a refresh
+    if (a.fetchStatus === "fetched") types[a.instagramHandle] = "business"
+    else if (a.fetchStatus === "unavailable") types[a.instagramHandle] = "personal"
+    else if (a.accountType === "business" || a.accountType === "creator") types[a.instagramHandle] = "business"
+    else if (a.accountType === "personal") types[a.instagramHandle] = "personal"
+  }
+  return types
+}
+
+// ---------------------------------------------------------------------------
 // Single add (Add Artist page)
 // ---------------------------------------------------------------------------
 
@@ -379,5 +515,20 @@ export class InvalidHandleError extends Error {
       `Invalid Instagram handle "${handle}". Handles must be 1-30 characters and contain only letters, numbers, periods, or underscores.`
     )
     this.name = "InvalidHandleError"
+  }
+}
+
+export class ArtistNotFoundError extends Error {
+  constructor() {
+    super("Artist not found")
+    this.name = "ArtistNotFoundError"
+  }
+}
+
+/** The bio was fetched within REFRESH_CONFIRM_WINDOW_MS; the user should confirm before refreshing again. */
+export class RecentlyRefreshedError extends Error {
+  constructor(public readonly lastRefreshedAt: Date) {
+    super("This bio was refreshed recently.")
+    this.name = "RecentlyRefreshedError"
   }
 }

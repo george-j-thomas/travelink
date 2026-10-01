@@ -15,9 +15,9 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 
 ### Key Layers
 - `src/lib/` — Service modules. Each is self-contained with its own types, error classes, and a single public API:
-  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`)
+  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`, `bioLastFetchedAt`). Bios are fetched once; `refreshArtistBio` (manual only) re-queues and claims an artist in one update, then fetches it, throwing `RecentlyRefreshedError` within `REFRESH_CONFIRM_WINDOW_MS` (72h) unless forced. A refresh that comes back unavailable keeps the old bio and locations. `getKnownAccountTypes` reports which handles earlier lookups found to be business/personal (DB only)
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
-  - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
+  - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent. Following-list entries carry `isPrivate` — Instagram doesn't say which are business accounts, but Business/Creator accounts can't be private
   - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
@@ -39,8 +39,11 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 
 ### Import Flow
 1. Get the following list (cookie scrape via `/api/import/scrape`, or data export via `/api/import/upload`) — returns accounts only, nothing is saved server-side. The import page keeps the list + selection as a per-user localStorage draft
-2. `POST /api/artists/bulk` saves the selection as pending artists right away
-3. The bio queue fetches bios in the background of any app page
+2. The select step's "Hide personal" filter (on by default) hides untracked accounts that are private (scrape only; exports have `isPrivate: null`) or that `POST /api/import/account-types` reports as personal. It never calls Business Discovery — classifying whole lists would burn the shared rate limit and daily budgets
+3. `POST /api/artists/bulk` saves the selection as pending artists right away
+4. The bio queue fetches bios in the background of any app page
+
+Bios aren't re-fetched automatically. The artist page's "Refresh bio" calls `POST /api/artists/[id]/refresh`; a 409 `recently_refreshed` means the bio was checked within 72h, and the client confirms before retrying with `{ force: true }`. If Instagram is throttling (or a budget is used up) the artist stays pending (202 `queued`) for the bio queue
 
 ### Data Flow
 Artists are **shared** across users. `UserArtist` is the join table — deleting an artist from a user's list only removes the link, not the artist record.
