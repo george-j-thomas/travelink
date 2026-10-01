@@ -12,26 +12,32 @@
   --font-heading: var(--font-zen);
   --font-display: var(--font-zen);
 
-  /* Designers Republic / Wipeout palette — pale grey paper, black ink,
-     vermilion accent used sparingly, graphite for guest spots.
-     No yellow, no cyan. Mirrored as hex in components/map/artist-map.tsx
-     (Mapbox paint can't read CSS vars). */
-  --color-brand-50: #fdf0eb;
-  --color-brand-100: #fbdccf;
-  --color-brand-200: #f6b49c;
-  --color-brand-300: #f08a66;
-  --color-brand-400: #ea6038;
-  --color-brand-500: #e23a10;
-  --color-brand-600: #c22f0b;
-  --color-brand-700: #a3260a;
-  --color-brand-900: #4d1305;
-  --color-guest-300: #b9bcbb;
-  --color-guest-400: #8d908f;
-  --color-guest-500: #5b5e5d;
-  --color-guest-600: #3b3d3c;
-  --color-guest-700: #232524;
-  --color-paper: #e7e9e8;
-  --color-paper-dark: #d9dcdb;
+  /* Metalheart palette — black & greyscale chrome with tinges of green
+     and blue. brand-* is the liquid-metal green-cyan accent; ice-* is the
+     cold blue reflection; guest-* is brushed steel-blue for guest spots.
+     Mirrored as hex in components/map/artist-map.tsx (Mapbox paint can't
+     read CSS vars). */
+  --color-brand-50: #e9fbf5;
+  --color-brand-100: #c2f5e6;
+  --color-brand-200: #8dedd1;
+  --color-brand-300: #52ddb9;
+  --color-brand-400: #27c8a1;
+  --color-brand-500: #19b792;
+  --color-brand-600: #0f9375;
+  --color-brand-700: #0c755d;
+  --color-brand-900: #063a2e;
+  --color-ice-200: #bfe0ff;
+  --color-ice-300: #88bcff;
+  --color-ice-400: #4f93f5;
+  --color-ice-500: #2f74e6;
+  --color-ice-600: #215bc0;
+  --color-guest-300: #9fb3c6;
+  --color-guest-400: #6f8699;
+  --color-guest-500: #4a5e71;
+  --color-guest-600: #33475a;
+  --color-guest-700: #22313f;
+  --color-paper: #0b0f12;
+  --color-paper-dark: #070a0c;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -70,40 +76,40 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Light "paper" theme is the only theme. */
+/* Dark "chrome" theme is the only theme. */
 :root {
-  --background: #e7e9e8;
-  --foreground: #121313;
-  --card: #f4f5f4;
-  --card-foreground: #121313;
-  --popover: #f4f5f4;
-  --popover-foreground: #121313;
-  --primary: #e23a10;
-  --primary-foreground: #ffffff;
-  --secondary: #dcdfde;
-  --secondary-foreground: #121313;
-  --muted: #dcdfde;
-  --muted-foreground: #5b5e5d;
-  --accent: #d6d9d8;
-  --accent-foreground: #121313;
-  --destructive: #c22f0b;
-  --border: rgb(18 19 19 / 16%);
-  --input: rgb(18 19 19 / 22%);
-  --ring: #e23a10;
-  --chart-1: #e23a10;
-  --chart-2: #3b3d3c;
-  --chart-3: #8d908f;
-  --chart-4: #f08a66;
-  --chart-5: #b9bcbb;
+  --background: #06090b;
+  --foreground: #c9d6d3;
+  --card: #0b1013;
+  --card-foreground: #c9d6d3;
+  --popover: #0b1013;
+  --popover-foreground: #c9d6d3;
+  --primary: #19b792;
+  --primary-foreground: #04110d;
+  --secondary: #141b1f;
+  --secondary-foreground: #c9d6d3;
+  --muted: #121a1e;
+  --muted-foreground: #78898a;
+  --accent: #16211f;
+  --accent-foreground: #e6f2ef;
+  --destructive: #e05a4a;
+  --border: rgb(180 214 206 / 11%);
+  --input: rgb(180 214 206 / 16%);
+  --ring: #19b792;
+  --chart-1: #19b792;
+  --chart-2: #4f93f5;
+  --chart-3: #6f8699;
+  --chart-4: #52ddb9;
+  --chart-5: #88bcff;
   --radius: 0.25rem;
-  --sidebar: #f4f5f4;
-  --sidebar-foreground: #121313;
-  --sidebar-primary: #e23a10;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dcdfde;
-  --sidebar-accent-foreground: #121313;
-  --sidebar-border: rgb(18 19 19 / 16%);
-  --sidebar-ring: #e23a10;
+  --sidebar: #0b1013;
+  --sidebar-foreground: #c9d6d3;
+  --sidebar-primary: #19b792;
+  --sidebar-primary-foreground: #04110d;
+  --sidebar-accent: #141b1f;
+  --sidebar-accent-foreground: #e6f2ef;
+  --sidebar-border: rgb(180 214 206 / 11%);
+  --sidebar-ring: #19b792;
 }
 
 @layer base {
@@ -112,18 +118,22 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Faint print grid behind every page */
+    /* Cold technical grid over near-black, lit by a green and a blue glow */
     background-image:
-      linear-gradient(to right, rgb(18 19 19 / 3.5%) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(18 19 19 / 3.5%) 1px, transparent 1px);
-    background-size: 56px 56px;
+      radial-gradient(60rem 42rem at 8% -8%, rgb(25 183 146 / 11%), transparent 60%),
+      radial-gradient(52rem 40rem at 108% 112%, rgb(47 116 230 / 13%), transparent 60%),
+      linear-gradient(to right, rgb(180 214 206 / 3.5%) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(180 214 206 / 3.5%) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
+    background-attachment: fixed, fixed, scroll, scroll;
   }
   ::selection {
     background: var(--color-brand-500);
-    color: #ffffff;
+    color: #04110d;
   }
   html {
     @apply font-sans;
+    color-scheme: dark;
   }
 }
 
@@ -145,7 +155,7 @@ html .mapboxgl-map {
   display: none;
 }
 
-/* ── Designers Republic / Wipeout utilities ─────────────────── */
+/* ── Display / layout utilities (shared across themes) ──────────── */
 
 /* Zen Dots ships one weight; a same-colour outline (--ink) fattens it
    toward the WBCD poster lettering. Never use font-bold on it. */
@@ -275,7 +285,130 @@ html .mapboxgl-map {
   .animate-dr-draw,
   .animate-dr-blink,
   .animate-dr-spin,
-  .animate-dr-marquee-reverse {
+  .animate-dr-marquee-reverse,
+  .animate-sheen,
+  .animate-metal-float,
+  .animate-pulse-glow {
     animation: none;
   }
+}
+
+/* ── Metalheart chrome furniture ────────────────────────────────── */
+
+/* Liquid-metal text: cold greyscale with a cyan-green highlight band. */
+@utility text-chrome {
+  background-image: linear-gradient(
+    175deg,
+    #f4fbf9 0%,
+    #aebcbd 22%,
+    #5f7173 40%,
+    #d8e6e4 52%,
+    #7f9294 66%,
+    #2f3c3e 82%,
+    #9fb2b2 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0;
+}
+
+/* Chrome with a green-cyan cast, for the primary brand word. */
+@utility text-chrome-brand {
+  background-image: linear-gradient(
+    175deg,
+    #eafff8 0%,
+    #7fe9cf 24%,
+    #19b792 44%,
+    #d6fff4 54%,
+    #0f9375 70%,
+    #063a2e 88%,
+    #52ddb9 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0;
+}
+
+/* Brushed-steel panel: dark, with a top rim light and inner reflections. */
+@utility metal-surface {
+  background-image:
+    linear-gradient(180deg, rgb(210 232 227 / 10%), transparent 14%),
+    linear-gradient(160deg, #10171a 0%, #0a1013 46%, #070b0d 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(214 246 240 / 14%),
+    inset 0 0 0 1px rgb(180 214 206 / 6%),
+    0 24px 48px -28px rgb(0 0 0 / 0.8);
+}
+
+/* Frosted glass over the metal, picks up the green/blue glows behind it. */
+@utility glass {
+  background: rgb(10 16 19 / 72%);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgb(214 246 240 / 10%),
+    0 20px 44px -26px rgb(0 0 0 / 0.75);
+}
+
+/* Hairline bevel edge, like the cut of a polished metal part. */
+@utility metal-bezel {
+  box-shadow:
+    inset 0 1px 0 rgb(214 246 240 / 16%),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    inset 1px 0 0 rgb(180 214 206 / 8%),
+    inset -1px 0 0 rgb(0 0 0 / 0.4);
+}
+
+@keyframes metal-sheen {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes metal-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.6deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: blur(28px);
+  }
+  50% {
+    opacity: 0.95;
+    filter: blur(36px);
+  }
+}
+
+/* Moving specular band swept across a metal label. */
+@utility animate-sheen {
+  background-image: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgb(224 255 248 / 55%) 48%,
+    rgb(136 188 255 / 45%) 54%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: metal-sheen 6s linear infinite;
+}
+
+@utility animate-metal-float {
+  animation: metal-float 7s ease-in-out infinite;
+}
+
+@utility animate-pulse-glow {
+  animation: pulse-glow 5s ease-in-out infinite;
 }

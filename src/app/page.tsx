@@ -5,6 +5,7 @@ import { MapPin, ScanText } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { InstagramIcon } from "@/components/icons/instagram";
 import { cn } from "@/lib/utils";
+import { ChromeStage } from "@/components/brand/chrome-stage";
 import {
   BrandMark,
   Chevrons,
@@ -89,7 +90,7 @@ export default async function Home() {
       </header>
 
       {/* ── Coordinate ticker ───────────────────────────────────── */}
-      <div aria-hidden="true" className="overflow-hidden bg-foreground py-1.5 text-background">
+      <div aria-hidden="true" className="glass overflow-hidden border-y border-border py-1.5 text-foreground">
         <div className="flex w-max animate-dr-marquee-reverse">
           {[0, 1].map((copy) => (
             <div key={copy} className="flex shrink-0 items-center">
@@ -97,8 +98,8 @@ export default async function Home() {
                 <span key={c.code} className="flex items-center gap-3 pr-6 font-mono text-[0.6rem] tracking-[0.2em] whitespace-nowrap uppercase">
                   <span className="size-1.5 bg-brand-500" />
                   <span className="font-bold">{c.code}</span>
-                  <span className="opacity-60">{c.lat} {c.lng}</span>
-                  <span className="opacity-40">{"///"}</span>
+                  <span className="text-muted-foreground">{c.lat} {c.lng}</span>
+                  <span className="text-brand-500/50">{"///"}</span>
                 </span>
               ))}
             </div>
@@ -109,7 +110,7 @@ export default async function Home() {
       {/* ── Hero ────────────────────────────────────────────────── */}
       <section className="relative">
         <RoutingLines className="hidden text-foreground/30 lg:block" />
-        <span aria-hidden="true" className="dr-outline pointer-events-none absolute right-[1%] bottom-[-2%] hidden text-[12rem] leading-none select-none [--outline-c:rgb(18_19_19/0.12)] lg:block">
+        <span aria-hidden="true" className="dr-outline pointer-events-none absolute right-[1%] bottom-[-2%] hidden text-[12rem] leading-none select-none [--outline-c:rgb(25_183_146/0.14)] lg:block">
           001
         </span>
         <Halftone className="absolute top-5 right-[3%] h-8 w-auto text-foreground/15 sm:h-14" />
@@ -138,11 +139,11 @@ export default async function Home() {
             </div>
 
             <h1 className="animate-dr-rise mt-7 font-display text-[2.7rem] leading-[0.98] lowercase [animation-delay:80ms] sm:text-7xl lg:text-[5.2rem]">
-              your
+              <span className="text-chrome">your</span>
               <br />
-              artists,
+              <span className="text-chrome">artists,</span>
               <br />
-              <span className="text-brand-500">mapped″</span>
+              <span className="text-chrome-brand">mapped″</span>
             </h1>
 
             <p className="animate-dr-rise mt-8 max-w-md text-base leading-relaxed text-muted-foreground [animation-delay:160ms] sm:text-lg">
@@ -171,7 +172,7 @@ export default async function Home() {
             </ul>
           </div>
 
-          <HeroArt />
+          <HeroStage />
         </div>
       </section>
 
@@ -183,10 +184,10 @@ export default async function Home() {
             <div key={copy} className="flex shrink-0 items-center">
               {MARQUEE.map((word, i) => (
                 <span key={word} className="flex items-center gap-4 pr-4">
-                  <span className="bg-background px-3 py-1 font-display text-2xl whitespace-nowrap lowercase sm:text-3xl">
+                  <span className="bg-background px-3 py-1 font-display text-2xl whitespace-nowrap lowercase text-chrome sm:text-3xl">
                     {word}
                   </span>
-                  <Glyph kind={BAND_GLYPHS[i % BAND_GLYPHS.length]} className="size-7 rounded-full bg-background text-foreground" />
+                  <Glyph kind={BAND_GLYPHS[i % BAND_GLYPHS.length]} className="size-7 rounded-full bg-background text-brand-400" />
                 </span>
               ))}
             </div>
@@ -207,13 +208,13 @@ export default async function Home() {
 
         <ol className="mt-14 grid gap-5 md:grid-cols-3">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="relative bg-card p-7 dr-notch [--notch:22px]">
+            <li key={step.title} className="metal-surface relative p-7 dr-notch [--notch:22px]">
               <div className="flex items-start justify-between">
-                <span className="font-display text-5xl leading-none">0{i + 1}</span>
-                <Glyph kind={step.glyph} className="size-6 text-foreground/70" />
+                <span className="font-display text-5xl leading-none text-chrome">0{i + 1}</span>
+                <Glyph kind={step.glyph} className="size-6 text-brand-400/80" />
               </div>
               <div className="mt-8 flex items-center gap-2.5">
-                <step.icon className="size-4 text-brand-500" />
+                <step.icon className="size-4 text-brand-400" />
                 <h3 className="font-wide text-sm font-bold uppercase tracking-[0.06em]">{step.title}</h3>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
@@ -238,7 +239,7 @@ export default async function Home() {
               <Readout>Fig. 02</Readout>
             </div>
             <WaveDisc className="w-full">
-              <span className="font-jp text-[2.1rem] leading-none text-brand-500 sm:text-[2.5rem]">トラベリンク</span>
+              <span className="font-jp text-[2.1rem] leading-none text-chrome-brand sm:text-[2.5rem]">トラベリンク</span>
             </WaveDisc>
             <Stamp id="stamp-city" text="Travelink • artist map • rev 02 • " className="absolute -right-4 -bottom-6 size-24 bg-paper-dark text-foreground sm:-right-10">
               <Glyph kind="plus" className="size-6 text-brand-500" />
@@ -270,10 +271,10 @@ export default async function Home() {
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:items-end">
           <div>
             <Readout>{"//:004"}</Readout>
-            <h2 className="mt-5 font-display text-[1.9rem] leading-[1.02] lowercase sm:text-5xl">
+            <h2 className="mt-5 font-display text-[1.9rem] leading-[1.02] lowercase text-chrome sm:text-5xl">
               know where your
               <br />
-              next <span className="text-brand-500">tattoo</span> is.
+              next <span className="text-chrome-brand">tattoo</span> is.
             </h2>
           </div>
           <div>
@@ -296,13 +297,14 @@ export default async function Home() {
           </span>
         </div>
 
-        {/* Wipeout-style vermilion tab */}
-        <div aria-hidden="true" className="mt-4 flex items-center gap-5 overflow-hidden rounded-xl bg-brand-500 px-6 py-5 text-white sm:px-8">
-          <span className="font-jp text-2xl whitespace-nowrap sm:text-4xl">旅するインク</span>
-          <span className="hidden font-mono text-[0.65rem] tracking-[0.2em] whitespace-nowrap uppercase sm:block">
+        {/* Metalheart chrome tab */}
+        <div aria-hidden="true" className="metal-surface relative mt-4 flex items-center gap-5 overflow-hidden rounded-xl px-6 py-5 sm:px-8">
+          <span className="pointer-events-none absolute inset-0 animate-sheen opacity-60" />
+          <span className="relative font-jp text-2xl whitespace-nowrap text-chrome-brand sm:text-4xl">旅するインク</span>
+          <span className="relative hidden font-mono text-[0.65rem] tracking-[0.2em] whitespace-nowrap text-foreground/60 uppercase sm:block">
             {"(travel>ink>>)"}
           </span>
-          <span className="ml-auto flex gap-2">
+          <span className="relative ml-auto flex gap-2 text-brand-300">
             {(["slash", "plus", "arrow"] as const).map((k) => (
               <Glyph key={k} kind={k} className="size-6" />
             ))}
@@ -328,9 +330,9 @@ function LoginButton({ size }: { size: "sm" | "lg" }) {
     <Link
       href="/login"
       className={cn(
-        "group inline-flex items-center rounded-[4px] bg-brand-500 font-wide font-bold uppercase text-white transition-colors duration-150",
-        "hover:bg-foreground active:bg-brand-600",
-        "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground",
+        "group inline-flex items-center rounded-[4px] bg-brand-500 font-wide font-bold uppercase text-[#04110d] transition-colors duration-150",
+        "hover:bg-brand-400 active:bg-brand-600",
+        "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-400",
         size === "lg" ? "h-13 gap-4 px-7 text-sm tracking-[0.1em]" : "h-9 gap-2.5 px-4 text-[0.68rem] tracking-[0.1em]",
       )}
     >
@@ -365,19 +367,10 @@ function SectionHeading({ code, title }: { code: string; title: string }) {
         <Readout className="text-foreground">{code}</Readout>
         <span className="h-px w-16 bg-foreground/30" />
       </div>
-      <h2 className="mt-4 font-display text-[1.7rem] leading-[1.02] lowercase sm:text-5xl">{title}</h2>
+      <h2 className="mt-4 font-display text-[1.7rem] leading-[1.02] lowercase text-chrome sm:text-5xl">{title}</h2>
     </div>
   );
 }
-
-const MOCK_PINS = [
-  { x: "20%", y: "34%", kind: "home" },
-  { x: "52%", y: "42%", kind: "cluster" },
-  { x: "64%", y: "68%", kind: "guest" },
-  { x: "80%", y: "28%", kind: "home" },
-  { x: "30%", y: "72%", kind: "guest" },
-  { x: "86%", y: "70%", kind: "home" },
-] as const;
 
 const MOCK_LIST = [
   { name: "Mara Volk", handle: "mara.ink", kind: "home" },
@@ -385,64 +378,40 @@ const MOCK_LIST = [
   { name: "Sasha K.", handle: "sashaflash", kind: "home" },
 ] as const;
 
-/** Decorative product mock: a map panel plus the cluster list popup. */
-function HeroArt() {
+/** Hero centerpiece: an interactive chrome artifact in a bezelled stage,
+ *  overlaid with a floating cluster-list readout. */
+function HeroStage() {
   return (
-    <div aria-hidden="true" className="animate-dr-rise relative mx-auto w-full max-w-[480px] pb-16 [animation-delay:300ms]">
+    <div
+      aria-hidden="true"
+      className="animate-dr-rise relative mx-auto w-full max-w-[480px] pb-16 [animation-delay:300ms]"
+    >
       <div className="mb-3 flex items-center justify-between">
-        <Chevrons count={3} className="h-3 w-auto text-brand-500" />
-        <Readout>Fig. 01 — map view</Readout>
+        <Chevrons count={3} className="h-3 w-auto text-brand-400" />
+        <Readout>Fig. 01 — rev 03 / chrome</Readout>
       </div>
 
-      {/* Map panel */}
-      <div className="overflow-hidden rounded-lg border border-foreground/20 bg-card">
-        <div className="flex items-center justify-between border-b border-foreground/15 px-3 py-2">
-          <span className="flex items-center gap-2">
-            <span className="rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[0.55rem] leading-none tracking-[0.18em] text-background uppercase">
-              Berlin
-            </span>
-            <Readout>52.52°N 13.40°E</Readout>
-          </span>
-          <span className="size-2 bg-brand-500 animate-dr-blink" />
-        </div>
-        <div className="relative aspect-[4/3] bg-paper-dark">
-          <div className="absolute inset-0 text-foreground/[0.06] dr-grid [--grid:24px]" />
-          <svg viewBox="0 0 400 300" className="absolute inset-0 size-full" fill="none">
-            <path d="M-10 220C50 200 80 240 150 214s120-100 190-80 80 36 80 36" stroke="#c9cccb" strokeWidth="22" />
-            <g stroke="#b6bab9" strokeWidth="1.5">
-              <path d="M0 90h400M0 168h400M90 0v300M210 0v300M320 0v300" />
-              <path d="M0 10l290 290M140 0l260 260" opacity=".6" />
-            </g>
-          </svg>
+      {/* 3D stage */}
+      <div className="metal-surface relative aspect-square overflow-hidden rounded-xl dr-notch [--notch:26px]">
+        <div className="absolute inset-0 text-brand-500/[0.07] dr-grid [--grid:26px]" />
+        <div className="pointer-events-none absolute -inset-10 animate-pulse-glow bg-[radial-gradient(circle_at_50%_55%,rgb(25_183_146/0.35),transparent_62%)]" />
+        <ChromeStage />
 
-          {MOCK_PINS.map((p, i) => (
-            <span key={i} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
-              {p.kind === "cluster" ? (
-                <span className="flex size-11 items-center justify-center rounded-full bg-brand-500 font-display text-base text-white ring-[6px] ring-brand-500/25">
-                  6
-                </span>
-              ) : (
-                <span
-                  className={cn(
-                    "block size-3.5 rounded-full ring-2 ring-white",
-                    p.kind === "guest" ? "bg-guest-600" : "bg-brand-500",
-                  )}
-                />
-              )}
-            </span>
-          ))}
-
-          <div className="absolute bottom-3 left-3 flex items-center gap-2">
-            <span className="h-1.5 w-12 border-x border-b border-foreground/60" />
-            <Readout>5 km</Readout>
-          </div>
-        </div>
+        {/* Corner readouts etched on the glass */}
+        <span className="absolute left-3 top-3 font-mono text-[0.55rem] tracking-[0.28em] text-foreground/60 uppercase">
+          TRV//INK
+        </span>
+        <span className="absolute right-3 top-3 size-2 bg-brand-500 animate-dr-blink" />
+        <span className="absolute bottom-3 left-3 font-mono text-[0.55rem] tracking-[0.24em] text-foreground/50 uppercase">
+          chrome_core.obj
+        </span>
+        <Chevrons count={3} className="absolute bottom-3 right-3 h-2.5 w-auto text-ice-400" />
       </div>
 
-      {/* Cluster list popup */}
-      <div className="absolute right-0 bottom-0 z-10 w-[264px] overflow-hidden rounded-md border border-foreground/20 bg-card shadow-[0_22px_40px_-20px_rgb(0_0_0/0.45)] sm:-right-6">
-        <div className="flex items-baseline justify-between gap-3 border-b border-foreground/15 px-3 py-2.5">
-          <span className="font-display text-sm whitespace-nowrap">Berlin, Germany</span>
+      {/* Cluster list popup — now a dark glass readout */}
+      <div className="glass metal-bezel absolute -right-2 bottom-2 z-10 w-[264px] overflow-hidden rounded-md sm:-right-6">
+        <div className="flex items-baseline justify-between gap-3 border-b border-foreground/10 px-3 py-2.5">
+          <span className="font-display text-sm whitespace-nowrap text-foreground">Berlin, Germany</span>
           <Readout className="whitespace-nowrap">6 artists</Readout>
         </div>
         <ul className="divide-y divide-foreground/10">
@@ -451,17 +420,19 @@ function HeroArt() {
               <span
                 className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold",
-                  a.kind === "guest" ? "bg-guest-600 text-white" : "bg-brand-100 text-brand-700",
+                  a.kind === "guest"
+                    ? "bg-guest-600 text-ice-200"
+                    : "bg-brand-500/15 text-brand-300",
                 )}
               >
                 {a.name[0]}
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-xs font-semibold">{a.name}</span>
-                <span className="block truncate text-[0.65rem] text-brand-600">@{a.handle}</span>
+                <span className="block truncate text-xs font-semibold text-foreground">{a.name}</span>
+                <span className="block truncate text-[0.65rem] text-brand-400">@{a.handle}</span>
               </span>
               {a.kind === "guest" && (
-                <span className="ml-auto rounded-[3px] border border-guest-600/50 px-1.5 py-0.5 font-mono text-[0.5rem] tracking-widest text-guest-600 uppercase">
+                <span className="ml-auto rounded-[3px] border border-ice-500/40 px-1.5 py-0.5 font-mono text-[0.5rem] tracking-widest text-ice-300 uppercase">
                   Guest
                 </span>
               )}

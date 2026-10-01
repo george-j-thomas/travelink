@@ -107,11 +107,11 @@ const clusterLayer = {
     "circle-color": [
       "step",
       ["get", "point_count"],
-      "#e23a10", // brand-500 — small clusters
+      "#19b792", // brand-500 — small clusters
       10,
-      "#c22f0b", // brand-600 — medium
+      "#27c8a1", // brand-400 — medium
       50,
-      "#a3260a", // brand-700 — large
+      "#52ddb9", // brand-300 — large
     ],
     "circle-radius": [
       "step",
@@ -151,8 +151,8 @@ const unclusteredPointLayer = {
     "circle-color": [
       "case",
       ["get", "isGuestSpot"],
-      "#3b3d3c", // guest-600 (graphite) for guest spots
-      "#e23a10", // brand-500 for primary / home base
+      "#4f93f5", // ice-400 (steel blue) for guest spots
+      "#19b792", // brand-500 (chrome green) for primary / home base
     ],
     "circle-radius": 8,
     "circle-stroke-width": 2,
@@ -501,7 +501,7 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
       <Map
         ref={localRef}
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle="mapbox://styles/mapbox/dark-v11"
         initialViewState={{
           longitude: 0,
           latitude: 20,

@@ -3,9 +3,9 @@ import type { ReactNode, SVGProps } from "react"
 import { cn } from "@/lib/utils"
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Designers Republic / Wipeout-style graphic furniture: hairline routing
-   lines, speed-line bands, tick rulers, label tags and circle glyphs.
-   All decorative: hidden from assistive tech.
+   Metalheart-style graphic furniture: hairline routing lines, speed-line
+   bands, tick rulers, label tags and circle glyphs — chrome etching over
+   the dark theme. All decorative: hidden from assistive tech.
    ═══════════════════════════════════════════════════════════════════ */
 
 type MarkProps = SVGProps<SVGSVGElement>
@@ -295,13 +295,26 @@ export function Halftone({ cols = 22, rows = 9, ...props }: MarkProps & { cols?:
   )
 }
 
-/** Vermilion disc cut by a white wave band, with content on the band. */
+/** Chrome disc cut by a wave band, green-rimmed, with content on the band. */
 export function WaveDisc({ className, children }: { className?: string; children?: ReactNode }) {
   return (
     <span className={cn("relative inline-flex aspect-square items-center justify-center", className)}>
       <svg viewBox="0 0 200 200" className="absolute inset-0 size-full" {...mark({})}>
-        <circle cx="100" cy="100" r="100" className="fill-brand-500" />
-        <path d="M0 92C40 66 90 112 132 92s52-30 68-22v52c-22-6-42 14-74 24S48 132 0 146Z" className="fill-background" />
+        <defs>
+          <radialGradient id="wavedisc-metal" cx="38%" cy="30%" r="80%">
+            <stop offset="0%" stopColor="#dfeeec" />
+            <stop offset="34%" stopColor="#8a9a9c" />
+            <stop offset="66%" stopColor="#3a4648" />
+            <stop offset="100%" stopColor="#0c1416" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="100" fill="url(#wavedisc-metal)" />
+        <circle cx="100" cy="100" r="97" fill="none" stroke="var(--color-brand-500)" strokeWidth="2" opacity="0.7" />
+        <path
+          d="M0 92C40 66 90 112 132 92s52-30 68-22v52c-22-6-42 14-74 24S48 132 0 146Z"
+          className="fill-background"
+          opacity="0.82"
+        />
       </svg>
       <span className="relative">{children}</span>
     </span>
