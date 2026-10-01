@@ -9,6 +9,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 ## Architecture
 
 ### Route Groups
+- `/` (`src/app/page.tsx`) — Public landing page: a short explainer for new users. Invite links point here (`/?invite=CODE`) and its "Get started" button forwards the code to `/register`. Signed-in users without an invite are redirected to `/map`.
 - `(auth)` — Login, register. Centered layout, no navbar.
 - `(app)` — All authenticated routes. Navbar + content layout.
 
@@ -103,6 +104,8 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 
 ### Git
 - Never add `Co-authored-by` trailers (or any AI attribution) to commit messages, PR/MR titles, or PR/MR descriptions
+- If you are working on a non-main branch, always commit and push unless told otherwise, and always open a PR
+- Open PRs only as the repo owner (`george-j-thomas`), never from another GitHub account
 
 ## Things to Avoid
 
