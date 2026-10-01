@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react"
 import { LogOut, MapPin, ShieldCheck, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { BrandMark } from "@/components/brand/marks"
 import { Button } from "@/components/ui/button"
 import {
   Avatar,
@@ -60,16 +61,8 @@ export function Navbar() {
         aria-label="Main"
       >
         {/* ── Brand ── */}
-        <Link
-          href="/artists"
-          className="mr-2 flex items-baseline gap-0 select-none"
-        >
-          <span className="text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground">
-            Travel
-          </span>
-          <span className="text-sm font-medium uppercase tracking-[0.25em] text-amber-500">
-            ink
-          </span>
+        <Link href="/artists" aria-label="Travelink home" className="mr-4">
+          <BrandMark />
         </Link>
 
         {/* ── Nav links ── */}
@@ -83,7 +76,7 @@ export function Navbar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "relative px-3 py-1.5 text-sm font-medium transition-colors rounded-md",
+                  "relative px-3 py-1.5 font-wide text-[0.68rem] font-bold uppercase tracking-[0.12em] transition-colors",
                   isActive
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -92,11 +85,11 @@ export function Navbar() {
               >
                 {label}
 
-                {/* Active indicator — warm amber bar */}
+                {/* Active indicator — vermilion underline */}
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-x-1 -bottom-[calc(0.5rem+1px)] h-0.5 rounded-full bg-amber-500"
+                    className="absolute inset-x-1 -bottom-[calc(0.75rem+1px)] h-[3px] bg-brand-500"
                   />
                 )}
               </Link>
@@ -119,7 +112,7 @@ export function Navbar() {
                   alt={user.name ?? "User avatar"}
                 />
               )}
-              <AvatarFallback className="bg-amber-500/15 text-amber-500 text-xs font-semibold">
+              <AvatarFallback className="bg-brand-500/15 text-brand-500 text-xs font-semibold">
                 {getUserInitials(user?.name, user?.email)}
               </AvatarFallback>
             </Avatar>
@@ -154,7 +147,7 @@ export function Navbar() {
             )}
 
             <DropdownMenuItem
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: "/" })}
             >
               <LogOut className="mr-2 size-4" />
               Sign out

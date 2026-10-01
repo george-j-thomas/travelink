@@ -62,11 +62,11 @@ export function MapSidebar({
       >
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-border/30 px-4 py-3">
-          <Users className="size-4 text-amber-500" />
+          <Users className="size-4 text-brand-500" />
           <h2 className="text-sm font-semibold text-foreground">
             Nearby Artists
           </h2>
-          <span className="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500">
+          <span className="ml-auto rounded-full bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-500">
             {features.length}
           </span>
         </div>
@@ -108,10 +108,10 @@ export function MapSidebar({
                   <li key={`${props.locationId}-${i}`}>
                     <button
                       onClick={() => onSelectFeature(feature)}
-                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-500/5"
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-brand-500/5"
                     >
                       {/* Avatar */}
-                      <div className="relative size-9 shrink-0 overflow-hidden rounded-full bg-amber-500/15">
+                      <div className="relative size-9 shrink-0 overflow-hidden rounded-full bg-brand-500/15">
                         {profilePicUrl ? (
                           <img
                             src={profilePicUrl}
@@ -119,7 +119,7 @@ export function MapSidebar({
                             className="size-9 rounded-full object-cover"
                           />
                         ) : (
-                          <span className="flex size-9 items-center justify-center text-xs font-semibold text-amber-500">
+                          <span className="flex size-9 items-center justify-center text-xs font-semibold text-brand-500">
                             {getInitials(name)}
                           </span>
                         )}
@@ -127,7 +127,7 @@ export function MapSidebar({
                         <span
                           className={cn(
                             "absolute -right-0.5 -bottom-0.5 size-3 rounded-full ring-2 ring-background",
-                            isGuestSpot ? "bg-purple-400" : "bg-amber-500",
+                            isGuestSpot ? "bg-guest-400" : "bg-brand-500",
                           )}
                         />
                       </div>
@@ -144,9 +144,9 @@ export function MapSidebar({
                         )}
                         <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground/70">
                           {isGuestSpot ? (
-                            <Plane className="size-3 shrink-0 text-purple-400" />
+                            <Plane className="size-3 shrink-0 text-guest-500" />
                           ) : isPrimary ? (
-                            <MapPin className="size-3 shrink-0 text-amber-500" />
+                            <MapPin className="size-3 shrink-0 text-brand-500" />
                           ) : (
                             <MapPin className="size-3 shrink-0 text-muted-foreground" />
                           )}

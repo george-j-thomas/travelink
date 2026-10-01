@@ -65,9 +65,9 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="border-border/50 shadow-2xl shadow-black/25">
+    <Card className="border border-foreground/20 shadow-[0_22px_40px_-24px_rgb(0_0_0/0.35)] ring-0">
       <CardHeader className="pb-2 text-center">
-        <CardTitle className="text-2xl font-semibold tracking-tight">
+        <CardTitle className="font-display text-2xl tracking-tight">
           Welcome back
         </CardTitle>
         <CardDescription>
@@ -115,7 +115,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="h-10 w-full font-wide font-bold uppercase tracking-[0.12em]" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign in
           </Button>
@@ -135,11 +135,11 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full gap-2 border-border/60 hover:border-pink-500/40 hover:bg-pink-500/5"
+              className="w-full gap-2 border-border/60 hover:border-brand-500/50 hover:bg-brand-500/5"
               onClick={() => signIn("instagram", { callbackUrl: "/artists" })}
               disabled={isLoading}
             >
-              <InstagramIcon className="h-4 w-4 text-pink-400" />
+              <InstagramIcon className="h-4 w-4 text-brand-600" />
               Continue with Instagram
             </Button>
           </>

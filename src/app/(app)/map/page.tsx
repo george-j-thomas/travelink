@@ -31,8 +31,8 @@ function MapSkeleton() {
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="size-12 animate-pulse rounded-full bg-amber-500/20" />
-            <MapPin className="absolute inset-0 m-auto size-6 animate-pulse text-amber-500/60" />
+            <div className="size-12 animate-pulse rounded-full bg-brand-500/20" />
+            <MapPin className="absolute inset-0 m-auto size-6 animate-pulse text-brand-500/60" />
           </div>
           <div className="space-y-2 text-center">
             <div className="mx-auto h-4 w-32 animate-pulse rounded bg-muted" />
@@ -86,9 +86,9 @@ function EmptyState() {
     <div className="fixed inset-x-0 top-14 bottom-0 z-10 bg-background">
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4 px-4 text-center">
-          <div className="mb-2 flex size-20 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+          <div className="mb-2 flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
             <MapPin
-              className="size-10 text-amber-500/80"
+              className="size-10 text-brand-500/80"
               strokeWidth={1.5}
             />
           </div>
@@ -102,7 +102,7 @@ function EmptyState() {
           </div>
           <Link href="/artists/add" className="mt-2">
             <Button
-              className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+              className="bg-brand-500 font-medium text-white hover:bg-brand-600"
               size="lg"
             >
               <Plus className="size-4" />

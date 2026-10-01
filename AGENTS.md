@@ -78,13 +78,17 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Always use the singleton from `@/lib/db`, never instantiate `PrismaClient` directly
 
 ### UI
-- Dark theme with amber (`amber-500`) accent color
-- Brand: "TRAVEL" in muted gray + "INK" in amber-500
+- Style: **light Designers Republic / Wipeout-cover** — pale-grey paper, black ink, a sparing vermilion accent. Hairline routing lines with 45° bends and terminal dots, tick rulers, `//:00x` codes, katakana, speed-line bands, round pictograms, rounded tabs. Not military/HUD, no racing imagery
+- Light theme only (`:root` in `globals.css`; there is no `.dark` block). Palette: **red, black and grey — no yellow, no cyan**. Tokens: `brand-50…900` (vermilion; `brand-500` for fills/large type, `brand-600/700` for small text on paper), `guest-300…700` (graphite, guest spots), `paper` / `paper-dark` (section bands). Use these, not raw Tailwind hues. Mapbox layers can't read CSS vars; `artist-map.tsx` mirrors them as hex on the `light-v11` style
+- Fonts: `font-display` / `font-heading` = Zen Dots (one weight — never `font-bold`). `font-display` thickens it with a same-colour outline that scales with size (`--ink`, default 0.05em; `BrandMark` uses 0.085em). `font-jp` = Dela Gothic One, required for any katakana/kanji (Zen Dots has none). `dr-outline` = hollow Zen Dots (`--outline`, `--outline-c`; don't combine with `font-display`). `font-wide` = Saira at 125% width (buttons, nav, labels), `font-sans` = Chakra Petch, `font-mono` = Geist Mono (readouts)
+- Marks in `src/components/brand/marks.tsx`: `BrandMark` (lowercase "travel" + vermilion "ink" + ®), `RoutingLines` (`layout`: `hero` | `frame` | `band`, each keeps clear of its page's copy), `SpeedLines`, `Ruler`, `Tag`, `Readout`, `Glyph`, `Chevrons`, `Plus`, `Warn`, `Stamp` (spinning circular text; unique `id`), `Halftone`, `WaveDisc`, `Reg`. Decorative only. The landing page is meant to be busy: layer lines, codes and marks generously
+- Copy: plain and factual. Decorative text is codes, coordinates, city names, katakana — no jokey slogans or fake ™ taglines
+- Utilities: `dr-grid` (`--grid`), `dr-notch` (cut bottom-right corner, `--notch`), `animate-dr-{rise,marquee,marquee-reverse,draw,blink,spin}` (all disabled under reduced motion). `clip-path` hides borders, shadows and focus outlines on the clipped element
 - shadcn/ui components in `src/components/ui/` — add via `npx shadcn@latest add <component>`, never create manually
-- Card styling: `border-border/50 shadow-2xl shadow-black/25`
+- Card styling: `border-border/50 shadow-2xl shadow-black/25` (auth cards: `border border-foreground/20` with a soft drop shadow)
 - Glassmorphic surfaces: `bg-background/80 backdrop-blur-xl backdrop-saturate-150`
-- Primary badges: amber-tinted (`border-amber-500/30 bg-amber-500/10 text-amber-200`)
-- Guest spot badges: purple-tinted
+- Primary badges: vermilion-tinted (`border-brand-500/30 bg-brand-500/10 text-brand-700`); primary buttons are `bg-brand-500 text-white`
+- Guest spot badges: graphite-tinted (`guest-*`); success states also use graphite, not green
 - Icons from `lucide-react`
 
 ### Error Handling
