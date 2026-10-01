@@ -20,6 +20,13 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import {
   Avatar,
@@ -387,6 +394,7 @@ export default function ArtistsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [search, setSearch] = useState("")
+  const [locationFilter, setLocationFilter] = useState("all")
   const { state: queue, kick, onArtistFetched } = useBioQueue()
   // Bios that arrive while the list is still loading would otherwise be overwritten by it
   const fetchedRef = useRef(new Map<string, Artist>())
@@ -438,11 +446,27 @@ export default function ArtistsPage() {
     if (hasPending) kick()
   }, [hasPending, kick])
 
+  // Unique location labels across all artists, for the filter dropdown
+  const locationOptions = useMemo(() => {
+    const labels = new Set<string>()
+    for (const a of artists) {
+      for (const l of a.locations) labels.add(locationLabel(l))
+    }
+    return Array.from(labels).sort((a, b) => a.localeCompare(b))
+  }, [artists])
+
+  // A selected location that no longer exists (list refreshed) falls back to all
+  useEffect(() => {
+    if (locationFilter !== "all" && !locationOptions.includes(locationFilter)) {
+      setLocationFilter("all")
+    }
+  }, [locationOptions, locationFilter])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return artists
-    return artists.filter(
-      (a) =>
+    return artists.filter((a) => {
+      const matchesSearch =
+        !q ||
         a.instagramHandle.toLowerCase().includes(q) ||
         a.displayName?.toLowerCase().includes(q) ||
         a.locations.some(
@@ -450,9 +474,15 @@ export default function ArtistsPage() {
             l.city?.toLowerCase().includes(q) ||
             l.country?.toLowerCase().includes(q) ||
             l.locationName.toLowerCase().includes(q),
-        ),
-    )
-  }, [artists, search])
+        )
+
+      const matchesLocation =
+        locationFilter === "all" ||
+        a.locations.some((l) => locationLabel(l) === locationFilter)
+
+      return matchesSearch && matchesLocation
+    })
+  }, [artists, search, locationFilter])
 
   /* Show search + add controls when loading (skeleton state) or when
      artists exist. Hidden in empty / error states where dedicated CTAs
@@ -485,6 +515,30 @@ export default function ArtistsPage() {
                 aria-label="Search artists"
               />
             </div>
+
+            {locationOptions.length > 0 && (
+              <Select
+                value={locationFilter}
+                onValueChange={(v) => setLocationFilter(v ?? "all")}
+              >
+                <SelectTrigger
+                  size="default"
+                  className="h-9 w-full sm:w-48"
+                  aria-label="Filter by location"
+                >
+                  <MapPin className="size-4 text-muted-foreground" />
+                  <SelectValue placeholder="All locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All locations</SelectItem>
+                  {locationOptions.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Link href="/artists/add" className="shrink-0">
               <Button variant="outline" size="sm">
@@ -538,16 +592,34 @@ export default function ArtistsPage() {
             strokeWidth={1.5}
           />
           <p className="text-sm text-muted-foreground">
-            No artists match{" "}
-            <span className="font-medium text-foreground">&ldquo;{search}&rdquo;</span>
+            No artists match
+            {search && (
+              <>
+                {" "}
+                <span className="font-medium text-foreground">
+                  &ldquo;{search}&rdquo;
+                </span>
+              </>
+            )}
+            {locationFilter !== "all" && (
+              <>
+                {search ? " in " : " "}
+                <span className="font-medium text-foreground">
+                  {locationFilter}
+                </span>
+              </>
+            )}
           </p>
           <Button
             variant="link"
             size="sm"
             className="mt-1 text-amber-500 hover:text-amber-400"
-            onClick={() => setSearch("")}
+            onClick={() => {
+              setSearch("")
+              setLocationFilter("all")
+            }}
           >
-            Clear search
+            Clear filters
           </Button>
         </div>
       ) : (

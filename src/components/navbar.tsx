@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 const navLinks = [
-  { href: "/artists", label: "Artists" },
   { href: "/map", label: "Map" },
+  { href: "/artists", label: "Artists" },
 ] as const
 
 function getUserInitials(name?: string | null, email?: string | null): string {
@@ -61,7 +61,7 @@ export function Navbar() {
       >
         {/* ── Brand ── */}
         <Link
-          href="/artists"
+          href="/map"
           className="mr-2 flex items-baseline gap-0 select-none"
         >
           <span className="text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground">

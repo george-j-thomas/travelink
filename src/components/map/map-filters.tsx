@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, MapPin, Navigation, Plane } from "lucide-react"
+import { Globe, MapPin, Plane } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils"
 interface MapFiltersProps {
   activeFilter: "all" | "primary" | "guest_spot"
   onFilterChange: (filter: "all" | "primary" | "guest_spot") => void
-  onLocateMe: () => void
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -31,7 +30,6 @@ const filters = [
 export function MapFilters({
   activeFilter,
   onFilterChange,
-  onLocateMe,
 }: MapFiltersProps) {
   return (
     <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
@@ -60,24 +58,6 @@ export function MapFilters({
             </button>
           )
         })}
-
-        {/* ── Separator ── */}
-        <div
-          className="mx-0.5 h-5 w-px bg-border/50"
-          role="separator"
-          aria-orientation="vertical"
-        />
-
-        {/* ── Locate me ── */}
-        <button
-          onClick={onLocateMe}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
-          title="Find my location"
-          aria-label="Find my location"
-        >
-          <Navigation className="size-3.5" />
-          <span className="hidden sm:inline">Near me</span>
-        </button>
       </nav>
     </div>
   )

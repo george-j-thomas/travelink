@@ -133,7 +133,7 @@ export default function RegisterPage() {
         // Account created but auto-login failed — redirect to login
         router.push("/login");
       } else {
-        router.push("/artists");
+        router.push("/map");
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -275,7 +275,7 @@ export default function RegisterPage() {
               type="button"
               variant="outline"
               className="w-full gap-2 border-border/60 hover:border-pink-500/40 hover:bg-pink-500/5"
-              onClick={() => signIn("instagram", { callbackUrl: "/artists" })}
+              onClick={() => signIn("instagram", { callbackUrl: "/map" })}
               disabled={isLoading}
             >
               <InstagramIcon className="h-4 w-4 text-pink-400" />

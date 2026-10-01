@@ -175,30 +175,8 @@ export async function fetchArtistProfile(handle: string): Promise<BusinessDiscov
   const usage = parseUsageHeaders(response.headers)
   const body = (await response.json().catch(() => ({}))) as BusinessDiscoveryResponse
 
-  if (body.error || !response.ok) {
-    const err = body.error
-    const code = err?.code ?? 0
-
-    if (response.status === 429 || RATE_LIMIT_CODES.has(code) || isBucRateLimit(code)) {
-      throw new RateLimitError(
-        `Instagram API rate limit: ${err?.message ?? `HTTP ${response.status}`}`,
-        usage.regainAccessMs || DEFAULT_RATE_LIMIT_BACKOFF_MS
-      )
-    }
-    if (err?.error_subcode === USER_NOT_FOUND_SUBCODE || code === 110) {
-      return { profile: null, usagePercent: usage.percent }
-    }
-    if (AUTH_ERROR_CODES.has(code) || isPermissionError(code)) {
-      throw new BusinessDiscoveryConfigError(
-        `Instagram API token was rejected (code ${code}): ${err?.message ?? "unknown error"}. ` +
-          "Generate a new long-lived token and update INSTAGRAM_APP_ACCESS_TOKEN."
-      )
-    }
-    throw new Error(
-      err
-        ? `Instagram API error (code ${code}): ${err.message}`
-        : `Instagram API request failed with HTTP ${response.status}`
-    )
+  if (interpretBusinessDiscovery(body, response, usage) === "not_found") {
+    return { profile: null, usagePercent: usage.percent }
   }
 
   const bd = body.business_discovery
@@ -216,4 +194,42 @@ export async function fetchArtistProfile(handle: string): Promise<BusinessDiscov
     },
     usagePercent: usage.percent,
   }
+}
+
+/**
+ * Maps a Business Discovery response's error (if any) to an action:
+ * returns "ok" when the call succeeded, "not_found" for a missing/personal
+ * account, and throws {@link RateLimitError} / {@link BusinessDiscoveryConfigError}
+ * / a generic Error for everything else.
+ */
+function interpretBusinessDiscovery(
+  body: BusinessDiscoveryResponse,
+  response: Response,
+  usage: UsageStats
+): "ok" | "not_found" {
+  if (!body.error && response.ok) return "ok"
+
+  const err = body.error
+  const code = err?.code ?? 0
+
+  if (response.status === 429 || RATE_LIMIT_CODES.has(code) || isBucRateLimit(code)) {
+    throw new RateLimitError(
+      `Instagram API rate limit: ${err?.message ?? `HTTP ${response.status}`}`,
+      usage.regainAccessMs || DEFAULT_RATE_LIMIT_BACKOFF_MS
+    )
+  }
+  if (err?.error_subcode === USER_NOT_FOUND_SUBCODE || code === 110) {
+    return "not_found"
+  }
+  if (AUTH_ERROR_CODES.has(code) || isPermissionError(code)) {
+    throw new BusinessDiscoveryConfigError(
+      `Instagram API token was rejected (code ${code}): ${err?.message ?? "unknown error"}. ` +
+        "Generate a new long-lived token and update INSTAGRAM_APP_ACCESS_TOKEN."
+    )
+  }
+  throw new Error(
+    err
+      ? `Instagram API error (code ${code}): ${err.message}`
+      : `Instagram API request failed with HTTP ${response.status}`
+  )
 }
