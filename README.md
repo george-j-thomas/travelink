@@ -58,7 +58,8 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Usage
 
 1. Create an account with email/password. Travelink is invite-only: an admin creates a single-use invite link on
-   the **Admin** page (avatar menu → Admin) and sends it to you. Admins (`ADMIN_EMAILS`) don't need one
+   the **Admin** page (avatar menu → Admin) and sends it to you. The link opens a short intro page; **Get started**
+   takes you to sign-up with the invite filled in. Admins (`ADMIN_EMAILS`) don't need one
 2. Go to **Import Artists** and either:
    - Paste your Instagram session cookie to load your following list
    - Or upload your Instagram data export (`following.json`)

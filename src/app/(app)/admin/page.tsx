@@ -76,7 +76,7 @@ function formatDate(iso: string): string {
 }
 
 function inviteUrl(code: string): string {
-  return `${window.location.origin}/register?invite=${encodeURIComponent(code)}`
+  return `${window.location.origin}/?invite=${encodeURIComponent(code)}`
 }
 
 function InviteStatusBadge({ invite }: { invite: Invite }) {

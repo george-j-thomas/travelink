@@ -9,6 +9,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 ## Architecture
 
 ### Route Groups
+- `/` (`src/app/page.tsx`) — Public landing page: a short explainer for new users. Invite links point here (`/?invite=CODE`) and its "Get started" button forwards the code to `/register`. Signed-in users without an invite are redirected to `/map`.
 - `(auth)` — Login, register. Centered layout, no navbar.
 - `(app)` — All authenticated routes. Navbar + content layout.
 
