@@ -71,9 +71,9 @@ model Artist {
   // unknown | personal | business | creator
   accountType      String    @default("unknown") @map("account_type")
   bioLastFetchedAt DateTime? @map("bio_last_fetched_at")
-  // Where the last bio came from: business_discovery | provider (HikerAPI)
+  // Where the last bio came from: business_discovery
   fetchSource      String?   @map("fetch_source")
-  // Bio fetch queue: pending | fetched | unavailable (no profile from any source) | failed
+  // Bio fetch queue: pending | fetched | unavailable (no public professional profile) | failed
   fetchStatus      String    @default("pending") @map("fetch_status")
   fetchAttempts    Int       @default(0) @map("fetch_attempts")
   fetchError       String?   @map("fetch_error")
@@ -144,7 +144,7 @@ model Invite {
 }
 
 // Daily call counters for paid / metered APIs. scope is "global" or a user id.
-// kind: e.g. "bio_parse" (Claude), "search", "profile" (paid Instagram provider)
+// kind: a DAILY_LIMITS key in src/lib/usage.ts, e.g. "bio_fetch"
 model ApiUsage {
   id     String   @id @default(cuid())
   scope  String

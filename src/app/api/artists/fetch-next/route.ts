@@ -6,7 +6,6 @@ import {
   processNextPendingArtist,
 } from "@/lib/artist-pipeline"
 import { BusinessDiscoveryConfigError, RateLimitError } from "@/lib/instagram"
-import { ProviderConfigError } from "@/lib/instagram-provider"
 import { BudgetExceededError } from "@/lib/usage"
 
 // One Instagram lookup + Claude parse + a few geocodes
@@ -69,15 +68,12 @@ export async function POST() {
         message: err.message,
       })
     }
-    if (err instanceof BusinessDiscoveryConfigError || err instanceof ProviderConfigError) {
+    if (err instanceof BusinessDiscoveryConfigError) {
       console.error("Bio lookup config error:", err.message)
       return NextResponse.json({
         status: "not_configured",
         remaining: await countPendingArtists(userId),
-        message:
-          err instanceof ProviderConfigError
-            ? "Instagram bio lookup is paused (the lookup service key or balance needs attention)."
-            : "Instagram bio lookup is misconfigured (the access token may have expired).",
+        message: "Instagram bio lookup is misconfigured (the access token may have expired).",
       })
     }
     console.error("POST /api/artists/fetch-next failed:", err)

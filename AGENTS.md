@@ -15,10 +15,9 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 
 ### Key Layers
 - `src/lib/` — Service modules. Each is self-contained with its own types, error classes, and a single public API:
-  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → paid provider if BD has no profile → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`)
+  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`)
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
-  - `instagram-provider.ts` — Paid provider (HikerAPI, `HIKERAPI_ACCESS_KEY`, prepaid balance): account search for the Add page typeahead, and profiles of accounts Business Discovery can't see (personal accounts). Optional: without the key, search falls back to the user's cookie. Maps errors to `ProviderConfigError` (bad key / empty balance) / `RateLimitError`
-  - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list, and for account search when the paid provider isn't configured or fails (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
+  - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent
   - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
@@ -102,7 +101,7 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 
 ### Access and Cost Control
 - Registration is invite-only (admin emails can register without one). New sign-up paths must go through `registerUser` in `@/lib/access`
-- Call `reserveUsage(kind, userId)` before every metered external call (Business Discovery, paid scraping providers). Handle `BudgetExceededError` like a rate limit: pause, don't mark failed. Limits are in `DAILY_LIMITS`
+- Call `reserveUsage(kind, userId)` before every metered external call (e.g. Business Discovery). Handle `BudgetExceededError` like a rate limit: pause, don't mark failed. Limits are in `DAILY_LIMITS`
 
 ### Git
 - Never add `Co-authored-by` trailers (or any AI attribution) to commit messages, PR/MR titles, or PR/MR descriptions

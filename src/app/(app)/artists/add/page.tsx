@@ -90,7 +90,7 @@ const STEPS = [
 const STEP_ADVANCE_MS = 1200
 const DONE_PAUSE_MS = 500
 
-// Each search is a paid lookup (or a request with the user's cookie) — keep them sparse
+// Each search is a request to Instagram with the user's cookie — keep them sparse
 const SEARCH_DEBOUNCE_MS = 400
 const SEARCH_MIN_CHARS = 2
 
@@ -151,21 +151,11 @@ export default function AddArtistPage() {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchPaused, setSearchPaused] = useState(false)
-  // Server-side search (paid provider) works without the user's cookie
-  const [providerSearch, setProviderSearch] = useState(false)
-  const canSearch = providerSearch || Boolean(cookie)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchCacheRef = useRef(new Map<string, SearchUser[]>())
-
-  useEffect(() => {
-    fetch("/api/instagram/search")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setProviderSearch(data?.provider === true))
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -212,7 +202,7 @@ export default function AddArtistPage() {
     cancelPendingSearch()
     setActive(-1)
 
-    if (!canSearch || searchPaused || query.length < SEARCH_MIN_CHARS) {
+    if (!cookie || searchPaused || query.length < SEARCH_MIN_CHARS) {
       setResults([])
       setSearching(false)
       setOpen(false)
@@ -240,7 +230,7 @@ export default function AddArtistPage() {
       const res = await fetch("/api/instagram/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, sessionId: cookie || undefined, ownerId: userId }),
+        body: JSON.stringify({ query, sessionId: cookie, ownerId: userId }),
         signal: controller.signal,
       })
 
@@ -261,13 +251,7 @@ export default function AddArtistPage() {
           // Stop searching for the rest of this visit
           setSearchPaused(true)
           setOpen(false)
-          setSearchError(
-            data.code === "search_limit"
-              ? `${data.error} You can still type the full handle.`
-              : "Search is rate limited right now. You can still type the full handle."
-          )
-        } else if (data.code === "search_unavailable") {
-          setProviderSearch(false)
+          setSearchError("Search is rate limited right now. You can still type the full handle.")
         } else {
           setSearchError("Search failed. You can still type the full handle.")
         }
@@ -589,7 +573,7 @@ export default function AddArtistPage() {
               Add Artist
             </CardTitle>
             <CardDescription>
-              {canSearch
+              {cookie
                 ? "Search Instagram for a tattoo artist, or type their exact handle"
                 : "Enter a tattoo artist\u2019s Instagram handle"}
             </CardDescription>
@@ -618,7 +602,7 @@ export default function AddArtistPage() {
                     ref={inputRef}
                     id="handle"
                     type="text"
-                    placeholder={canSearch ? "Search artists…" : "artist_handle"}
+                    placeholder={cookie ? "Search artists…" : "artist_handle"}
                     autoFocus
                     autoComplete="off"
                     autoCapitalize="none"
@@ -733,8 +717,8 @@ export default function AddArtistPage() {
               </Button>
             </form>
 
-            {/* Connect Instagram (only needed when there's no server-side search) */}
-            {!cookie && !providerSearch && (
+            {/* Connect Instagram */}
+            {!cookie && (
               <div className="grid gap-2.5 rounded-lg border border-border/50 bg-muted/20 p-3.5">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <Search className="h-3.5 w-3.5 text-amber-400" />
