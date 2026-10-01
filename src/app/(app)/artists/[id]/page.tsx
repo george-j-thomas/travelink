@@ -386,7 +386,7 @@ export default function ArtistDetailPage() {
             </Avatar>
 
             <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="font-display text-2xl tracking-tight text-foreground">
+              <h1 className="font-display text-2xl tracking-tight text-chrome">
                 {name}
               </h1>
 

@@ -242,7 +242,7 @@ function BioQueuePill({ state }: { state: BioQueueState }) {
       href="/artists"
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-border/50 bg-background/80 px-4 py-2 text-xs text-muted-foreground shadow-2xl shadow-black/25 backdrop-blur-xl backdrop-saturate-150 transition-colors hover:text-foreground"
+      className="glass flow-edge fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full px-4 py-2 text-xs text-muted-foreground transition-colors [--edge-dur:3s] hover:text-foreground"
     >
       {state.status === "paused" ? (
         <>

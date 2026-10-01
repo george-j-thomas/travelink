@@ -303,7 +303,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
       <div className="flex items-start gap-3 border-b border-border/50 px-3.5 py-3">
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm leading-snug">{heading}</p>
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">{items.length} artists</p>
+          <p className="font-wide text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">{items.length} artists</p>
         </div>
         <CloseButton onClick={onClose} />
       </div>

@@ -496,7 +496,6 @@ export function LocationForm({
         <Button
           type="submit"
           disabled={saving}
-          className="bg-brand-500 text-white hover:bg-brand-600"
         >
           {saving && <Loader2 className="size-3.5 animate-spin" />}
           {saving ? "Saving…" : isEditing ? "Update location" : "Save location"}

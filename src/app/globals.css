@@ -12,32 +12,44 @@
   --font-heading: var(--font-zen);
   --font-display: var(--font-zen);
 
-  /* Metalheart palette — black & greyscale chrome with tinges of green
-     and blue. brand-* is the liquid-metal green-cyan accent; ice-* is the
-     cold blue reflection; guest-* is brushed steel-blue for guest spots.
-     Mirrored as hex in components/map/artist-map.tsx (Mapbox paint can't
-     read CSS vars). */
+  /* Metalheart palette — gunmetal and greyscale chrome with tinges of
+     green and blue. gun-* is the blue-grey gunmetal family used for all
+     metal surfaces; brand-* is the liquid-metal green tinge; ice-* the
+     cold blue tinge; guest-* steel-blue text/tints for guest spots (light
+     enough to read on the dark theme). Mapbox mirrors brand/ice as hex in
+     components/map/artist-map.tsx (Mapbox paint can't read CSS vars). */
+  --color-gun-50: #e4e9ec;
+  --color-gun-100: #c9d1d6;
+  --color-gun-200: #a3aeb5;
+  --color-gun-300: #7d8991;
+  --color-gun-400: #5c6870;
+  --color-gun-500: #454f56;
+  --color-gun-600: #343c42;
+  --color-gun-700: #262c31;
+  --color-gun-800: #1a1f23;
+  --color-gun-900: #111518;
+  --color-gun-950: #0a0d0f;
   --color-brand-50: #e9fbf5;
   --color-brand-100: #c2f5e6;
   --color-brand-200: #8dedd1;
   --color-brand-300: #52ddb9;
   --color-brand-400: #27c8a1;
   --color-brand-500: #19b792;
-  --color-brand-600: #0f9375;
-  --color-brand-700: #0c755d;
-  --color-brand-900: #063a2e;
+  --color-brand-600: #17a886;
+  --color-brand-700: #1a9a7c;
+  --color-brand-900: #0b4a3b;
   --color-ice-200: #bfe0ff;
   --color-ice-300: #88bcff;
   --color-ice-400: #4f93f5;
   --color-ice-500: #2f74e6;
   --color-ice-600: #215bc0;
-  --color-guest-300: #9fb3c6;
-  --color-guest-400: #6f8699;
-  --color-guest-500: #4a5e71;
-  --color-guest-600: #33475a;
-  --color-guest-700: #22313f;
-  --color-paper: #0b0f12;
-  --color-paper-dark: #070a0c;
+  --color-guest-300: #d2e0f0;
+  --color-guest-400: #a9c2e0;
+  --color-guest-500: #8aa8cf;
+  --color-guest-600: #7896bd;
+  --color-guest-700: #6584ab;
+  --color-paper: #0d1113;
+  --color-paper-dark: #080a0c;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -76,40 +88,41 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Dark "chrome" theme is the only theme. */
+/* Dark gunmetal theme is the only theme. */
 :root {
-  --background: #06090b;
-  --foreground: #c9d6d3;
-  --card: #0b1013;
-  --card-foreground: #c9d6d3;
-  --popover: #0b1013;
-  --popover-foreground: #c9d6d3;
-  --primary: #19b792;
-  --primary-foreground: #04110d;
-  --secondary: #141b1f;
-  --secondary-foreground: #c9d6d3;
-  --muted: #121a1e;
-  --muted-foreground: #78898a;
-  --accent: #16211f;
-  --accent-foreground: #e6f2ef;
+  --background: #07090b;
+  --foreground: #d2d9dd;
+  --card: #111518;
+  --card-foreground: #d2d9dd;
+  --popover: #111518;
+  --popover-foreground: #d2d9dd;
+  /* Polished steel: default buttons get the full chrome treatment below */
+  --primary: #c3ccd2;
+  --primary-foreground: #0a0d0f;
+  --secondary: #1a1f23;
+  --secondary-foreground: #d2d9dd;
+  --muted: #151a1d;
+  --muted-foreground: #848f96;
+  --accent: #1d2428;
+  --accent-foreground: #e9eef1;
   --destructive: #e05a4a;
-  --border: rgb(180 214 206 / 11%);
-  --input: rgb(180 214 206 / 16%);
-  --ring: #19b792;
+  --border: rgb(190 205 214 / 12%);
+  --input: rgb(190 205 214 / 16%);
+  --ring: #4f93f5;
   --chart-1: #19b792;
   --chart-2: #4f93f5;
-  --chart-3: #6f8699;
+  --chart-3: #7d8991;
   --chart-4: #52ddb9;
   --chart-5: #88bcff;
   --radius: 0.25rem;
-  --sidebar: #0b1013;
-  --sidebar-foreground: #c9d6d3;
-  --sidebar-primary: #19b792;
-  --sidebar-primary-foreground: #04110d;
-  --sidebar-accent: #141b1f;
-  --sidebar-accent-foreground: #e6f2ef;
-  --sidebar-border: rgb(180 214 206 / 11%);
-  --sidebar-ring: #19b792;
+  --sidebar: #111518;
+  --sidebar-foreground: #d2d9dd;
+  --sidebar-primary: #c3ccd2;
+  --sidebar-primary-foreground: #0a0d0f;
+  --sidebar-accent: #1a1f23;
+  --sidebar-accent-foreground: #e9eef1;
+  --sidebar-border: rgb(190 205 214 / 12%);
+  --sidebar-ring: #4f93f5;
 }
 
 @layer base {
@@ -118,18 +131,19 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Cold technical grid over near-black, lit by a green and a blue glow */
+    /* Near-black gunmetal, a cold technical grid, faint green/blue tinges */
     background-image:
-      radial-gradient(60rem 42rem at 8% -8%, rgb(25 183 146 / 11%), transparent 60%),
-      radial-gradient(52rem 40rem at 108% 112%, rgb(47 116 230 / 13%), transparent 60%),
-      linear-gradient(to right, rgb(180 214 206 / 3.5%) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(180 214 206 / 3.5%) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
-    background-attachment: fixed, fixed, scroll, scroll;
+      radial-gradient(58rem 40rem at 6% -10%, rgb(25 183 146 / 7%), transparent 60%),
+      radial-gradient(50rem 38rem at 106% 112%, rgb(47 116 230 / 9%), transparent 60%),
+      radial-gradient(80rem 50rem at 50% 40%, rgb(120 136 148 / 5%), transparent 70%),
+      linear-gradient(to right, rgb(190 205 214 / 3%) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(190 205 214 / 3%) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 56px 56px, 56px 56px;
+    background-attachment: fixed, fixed, fixed, scroll, scroll;
   }
   ::selection {
-    background: var(--color-brand-500);
-    color: #04110d;
+    background: var(--color-gun-200);
+    color: var(--color-gun-950);
   }
   html {
     @apply font-sans;
@@ -155,10 +169,10 @@ html .mapboxgl-map {
   display: none;
 }
 
-/* ── Display / layout utilities (shared across themes) ──────────── */
+/* ── Type ───────────────────────────────────────────────────────── */
 
-/* Zen Dots ships one weight; a same-colour outline (--ink) fattens it
-   toward the WBCD poster lettering. Never use font-bold on it. */
+/* Zen Dots ships one weight; a same-colour outline (--ink) fattens it.
+   Never use font-bold on it. */
 @utility font-display {
   font-family: var(--font-zen), ui-sans-serif, sans-serif;
   font-weight: 400;
@@ -169,47 +183,37 @@ html .mapboxgl-map {
   paint-order: stroke fill;
 }
 
-/* Japanese text: Zen Dots has no katakana, Dela Gothic One does */
-@utility font-jp {
-  font-family: var(--font-dela), ui-sans-serif, sans-serif;
-  font-weight: 400;
-  font-synthesis: none;
-}
-
-/* Hollow display type (standalone; don't combine with font-display) */
-@utility dr-outline {
-  font-family: var(--font-zen), ui-sans-serif, sans-serif;
-  font-weight: 400;
-  font-synthesis: none;
-  color: transparent;
-  -webkit-text-stroke: var(--outline, 1px) var(--outline-c, var(--foreground));
-}
-
 /* Wide label face: Saira stretched to its 125% width axis */
 @utility font-wide {
   font-family: var(--font-saira), ui-sans-serif, sans-serif;
   font-stretch: 125%;
 }
 
-@utility dr-grid {
-  background-image:
-    linear-gradient(to right, currentColor 1px, transparent 1px),
-    linear-gradient(to bottom, currentColor 1px, transparent 1px);
-  background-size: var(--grid, 32px) var(--grid, 32px);
+/* ── Motion ─────────────────────────────────────────────────────── */
+
+/* Animatable custom properties: light angles and sheen positions. The
+   pointer position arrives as --mx / --my (-1…1) on <html>, set by
+   components/metal/pointer-vars.tsx, so chrome everywhere shifts its
+   reflections with the cursor. */
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
-/* One corner notched at 45° (bottom-right), like a cut sticker label */
-@utility dr-notch {
-  clip-path: polygon(
-    0 0,
-    100% 0,
-    100% calc(100% - var(--notch, 14px)),
-    calc(100% - var(--notch, 14px)) 100%,
-    0 100%
-  );
+@property --edge-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
-@keyframes dr-rise {
+@property --sheen-x {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 130%;
+}
+
+@keyframes rise {
   from {
     opacity: 0;
     transform: translateY(14px);
@@ -220,13 +224,7 @@ html .mapboxgl-map {
   }
 }
 
-@keyframes dr-marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes dr-draw {
+@keyframes draw {
   from {
     stroke-dashoffset: var(--dash, 1200);
   }
@@ -235,130 +233,36 @@ html .mapboxgl-map {
   }
 }
 
-@keyframes dr-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes dr-marquee-reverse {
+/* Light pulse travelling along a routing line (pathLength=1000) */
+@keyframes route-pulse {
   from {
-    transform: translateX(-50%);
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: -1000;
   }
 }
 
-@keyframes dr-blink {
-  50% {
-    opacity: 0;
+@keyframes spin-light {
+  to {
+    --spin: 360deg;
   }
 }
 
-@utility animate-dr-rise {
-  animation: dr-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-@utility animate-dr-marquee {
-  animation: dr-marquee 40s linear infinite;
-}
-
-@utility animate-dr-draw {
-  stroke-dasharray: var(--dash, 1200);
-  animation: dr-draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) both;
-}
-
-@utility animate-dr-spin {
-  animation: dr-spin 24s linear infinite;
-  transform-origin: center;
-}
-
-@utility animate-dr-marquee-reverse {
-  animation: dr-marquee-reverse 60s linear infinite;
-}
-
-@utility animate-dr-blink {
-  animation: dr-blink 1.2s steps(1, end) infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-dr-rise,
-  .animate-dr-marquee,
-  .animate-dr-draw,
-  .animate-dr-blink,
-  .animate-dr-spin,
-  .animate-dr-marquee-reverse,
-  .animate-sheen,
-  .animate-metal-float,
-  .animate-pulse-glow {
-    animation: none;
+@keyframes edge-spin {
+  to {
+    --edge-angle: 360deg;
   }
 }
 
-/* ── Metalheart chrome furniture ────────────────────────────────── */
-
-/* Liquid-metal text: cold greyscale with a cyan-green highlight band. */
-@utility text-chrome {
-  background-image: linear-gradient(
-    175deg,
-    #f4fbf9 0%,
-    #aebcbd 22%,
-    #5f7173 40%,
-    #d8e6e4 52%,
-    #7f9294 66%,
-    #2f3c3e 82%,
-    #9fb2b2 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-stroke: 0;
-}
-
-/* Chrome with a green-cyan cast, for the primary brand word. */
-@utility text-chrome-brand {
-  background-image: linear-gradient(
-    175deg,
-    #eafff8 0%,
-    #7fe9cf 24%,
-    #19b792 44%,
-    #d6fff4 54%,
-    #0f9375 70%,
-    #063a2e 88%,
-    #52ddb9 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-stroke: 0;
-}
-
-/* Brushed-steel panel: dark, with a top rim light and inner reflections. */
-@utility metal-surface {
-  background-image:
-    linear-gradient(180deg, rgb(210 232 227 / 10%), transparent 14%),
-    linear-gradient(160deg, #10171a 0%, #0a1013 46%, #070b0d 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(214 246 240 / 14%),
-    inset 0 0 0 1px rgb(180 214 206 / 6%),
-    0 24px 48px -28px rgb(0 0 0 / 0.8);
-}
-
-/* Frosted glass over the metal, picks up the green/blue glows behind it. */
-@utility glass {
-  background: rgb(10 16 19 / 72%);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  box-shadow:
-    inset 0 1px 0 rgb(214 246 240 / 10%),
-    0 20px 44px -26px rgb(0 0 0 / 0.75);
-}
-
-/* Hairline bevel edge, like the cut of a polished metal part. */
-@utility metal-bezel {
-  box-shadow:
-    inset 0 1px 0 rgb(214 246 240 / 16%),
-    inset 0 -1px 0 rgb(0 0 0 / 0.5),
-    inset 1px 0 0 rgb(180 214 206 / 8%),
-    inset -1px 0 0 rgb(0 0 0 / 0.4);
+@keyframes sheen-pass {
+  0%,
+  55% {
+    --sheen-x: 130%;
+  }
+  100% {
+    --sheen-x: -30%;
+  }
 }
 
 @keyframes metal-sheen {
@@ -370,13 +274,25 @@ html .mapboxgl-map {
   }
 }
 
-@keyframes metal-float {
+@keyframes flow-x {
+  to {
+    background-position-x: 600px;
+  }
+}
+
+@keyframes flow-y {
+  to {
+    background-position-y: 600px;
+  }
+}
+
+@keyframes float {
   0%,
   100% {
-    transform: translateY(0) rotate(0deg);
+    transform: translate3d(0, 0, 0) rotate(0deg);
   }
   50% {
-    transform: translateY(-8px) rotate(0.6deg);
+    transform: translate3d(0, -10px, 0) rotate(8deg);
   }
 }
 
@@ -384,15 +300,27 @@ html .mapboxgl-map {
   0%,
   100% {
     opacity: 0.55;
-    filter: blur(28px);
   }
   50% {
     opacity: 0.95;
-    filter: blur(36px);
   }
 }
 
-/* Moving specular band swept across a metal label. */
+@utility animate-rise {
+  animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@utility animate-draw {
+  stroke-dasharray: var(--dash, 1200);
+  animation: draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) both;
+}
+
+@utility animate-route-pulse {
+  stroke-dasharray: 70 1930;
+  animation: route-pulse var(--pulse-dur, 7s) linear infinite;
+}
+
+/* Moving specular band swept across a metal bar — the header "moving color" */
 @utility animate-sheen {
   background-image: linear-gradient(
     110deg,
@@ -405,10 +333,517 @@ html .mapboxgl-map {
   animation: metal-sheen 6s linear infinite;
 }
 
-@utility animate-metal-float {
-  animation: metal-float 7s ease-in-out infinite;
-}
-
 @utility animate-pulse-glow {
   animation: pulse-glow 5s ease-in-out infinite;
+}
+
+/* Slow hover for floating ornaments (wrap the ornament: it owns its own
+   transform) */
+@utility animate-float {
+  animation: float var(--float-dur, 8s) ease-in-out infinite;
+}
+
+/* ── Metalheart chrome ──────────────────────────────────────────── */
+
+/* Liquid chrome type: a sky/ground horizon reflection that slides with the
+   pointer, plus a light pass every few seconds. */
+@utility text-chrome {
+  background-image:
+    linear-gradient(
+      105deg,
+      transparent 40%,
+      rgb(255 255 255 / 0.9) 49%,
+      rgb(160 225 255 / 0.55) 53%,
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      #f5f8f9 0%,
+      #c3ccd2 22%,
+      #76828a 42%,
+      #20272c 50%,
+      #8a969d 57%,
+      #dce3e7 76%,
+      #8d99a0 100%
+    );
+  background-size: 260% 100%, 100% 200%;
+  background-position: var(--sheen-x) 0, 0 calc(50% + var(--my, 0) * 22%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  animation: sheen-pass 7s ease-in-out infinite;
+}
+
+/* Chrome with a green-to-blue cast, for the accent word. */
+@utility text-chrome-brand {
+  background-image:
+    linear-gradient(
+      105deg,
+      transparent 40%,
+      rgb(255 255 255 / 0.85) 49%,
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      #effffa 0%,
+      #8fe9d2 22%,
+      #1fae8e 42%,
+      #06231d 50%,
+      #3f8fd8 58%,
+      #bfe0ff 78%,
+      #52ddb9 100%
+    );
+  background-size: 260% 100%, 100% 200%;
+  background-position: var(--sheen-x) 0, 0 calc(50% + var(--my, 0) * 22%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  animation: sheen-pass 7s ease-in-out 1.2s infinite;
+}
+
+/* Brushed gunmetal panel: hairline grain, rim light, and a soft specular
+   pool that drifts toward the pointer. */
+@utility metal-surface {
+  background-image:
+    radial-gradient(
+      120% 90% at calc(50% + var(--mx, 0) * 45%) calc(-10% + var(--my, 0) * 20%),
+      rgb(214 228 236 / 11%),
+      transparent 60%
+    ),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 1.6%) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #232a2f 0%, #171c20 38%, #111518 62%, #1a2024 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(226 236 242 / 16%),
+    inset 0 -1px 0 rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(190 205 214 / 7%),
+    0 26px 50px -30px rgb(0 0 0 / 0.9);
+}
+
+/* Header/footer bar: gunmetal with a chrome horizon band. */
+@utility metal-bar {
+  background-image:
+    radial-gradient(
+      60% 140% at calc(50% + var(--mx, 0) * 50%) 0%,
+      rgb(220 232 238 / 9%),
+      transparent 70%
+    ),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 1.4%) 0 1px, transparent 1px 3px),
+    linear-gradient(
+      180deg,
+      #2d353b 0%,
+      #1d2327 46%,
+      #121619 54%,
+      #191e22 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgb(230 238 243 / 18%),
+    inset 0 -1px 0 rgb(0 0 0 / 0.6),
+    0 10px 30px -12px rgb(0 0 0 / 0.85);
+}
+
+/* Vertical gunmetal column (map page sides): a turned-metal horizon running
+   top to bottom, with a specular pool that tracks the pointer's height. */
+@utility metal-column {
+  background-image:
+    radial-gradient(
+      160% 40% at 50% calc(50% + var(--my, 0) * 48%),
+      rgb(220 232 238 / 10%),
+      transparent 70%
+    ),
+    repeating-linear-gradient(180deg, rgb(255 255 255 / 1.4%) 0 1px, transparent 1px 3px),
+    linear-gradient(
+      90deg,
+      #0e1214 0%,
+      #262d32 18%,
+      #343d43 34%,
+      #1a1f23 50%,
+      #121619 58%,
+      #262d32 82%,
+      #0c0f11 100%
+    );
+  box-shadow:
+    inset 1px 0 0 rgb(230 238 243 / 12%),
+    inset -1px 0 0 rgb(0 0 0 / 0.6);
+}
+
+/* Smoked glass over the metal. */
+@utility glass {
+  background: rgb(13 17 20 / 74%);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgb(226 236 242 / 10%),
+    0 20px 44px -26px rgb(0 0 0 / 0.8);
+}
+
+/* Hairline bevel, like the cut edge of a machined part. */
+@utility metal-bezel {
+  box-shadow:
+    inset 0 1px 0 rgb(226 236 242 / 18%),
+    inset 0 -1px 0 rgb(0 0 0 / 0.55),
+    inset 1px 0 0 rgb(190 205 214 / 8%),
+    inset -1px 0 0 rgb(0 0 0 / 0.4);
+}
+
+/* Thin turned-chrome ring (masked conic gradient) whose reflections circle
+   slowly and lean toward the pointer. Ring width via --ring-w. */
+@utility chrome-ring {
+  border-radius: 9999px;
+  padding: var(--ring-w, 2px);
+  background: conic-gradient(
+    from calc(var(--spin) + var(--mx, 0) * 90deg),
+    #f2f6f8,
+    #59646b 12%,
+    #dfe6ea 22%,
+    #1c2226 34%,
+    #9fe8d6 42%,
+    #3c464d 52%,
+    #eef3f5 62%,
+    #222a2f 74%,
+    #8cb8f5 82%,
+    #4a545b 90%,
+    #f2f6f8
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spin-light 16s linear infinite;
+}
+
+/* Moving colour line: green → cyan → blue → steel, flowing sideways.
+   Seamless 600px tile so it loops at any width. */
+@utility flow-line {
+  background-image: linear-gradient(
+    90deg,
+    rgb(25 183 146 / 0) 0px,
+    rgb(25 183 146 / 0.95) 90px,
+    #9ff3e0 150px,
+    rgb(79 147 245 / 0.95) 230px,
+    #dfe7ec 300px,
+    rgb(79 147 245 / 0.6) 380px,
+    rgb(25 183 146 / 0) 470px,
+    rgb(25 183 146 / 0) 600px
+  );
+  background-size: 600px 100%;
+  background-repeat: repeat-x;
+  animation: flow-x 4.5s linear infinite;
+}
+
+/* Vertical variant, for pillars. */
+@utility flow-line-y {
+  background-image: linear-gradient(
+    180deg,
+    rgb(25 183 146 / 0) 0px,
+    rgb(25 183 146 / 0.95) 90px,
+    #9ff3e0 150px,
+    rgb(79 147 245 / 0.95) 230px,
+    #dfe7ec 300px,
+    rgb(79 147 245 / 0.6) 380px,
+    rgb(25 183 146 / 0) 470px,
+    rgb(25 183 146 / 0) 600px
+  );
+  background-size: 100% 600px;
+  background-repeat: repeat-y;
+  animation: flow-y 5s linear infinite;
+}
+
+/* A light that runs around the element's edge (needs a positioned element;
+   inherits its border radius). */
+@utility flow-edge {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: var(--edge-w, 1px);
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--edge-angle),
+      transparent 0deg,
+      rgb(25 183 146 / 0.9) 40deg,
+      #c8fff1 70deg,
+      rgb(79 147 245 / 0.95) 100deg,
+      transparent 150deg,
+      transparent 200deg,
+      rgb(220 230 236 / 0.55) 250deg,
+      transparent 290deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: edge-spin var(--edge-dur, 5s) linear infinite;
+  }
+}
+
+/* Polished-steel control with a coloured light pass. Also applied to every
+   default shadcn Button (see @layer components below). */
+@utility btn-chrome {
+  position: relative;
+  overflow: hidden;
+  color: var(--color-gun-950);
+  background-color: #aab4ba;
+  background-image:
+    linear-gradient(
+      105deg,
+      transparent 35%,
+      rgb(255 255 255 / 0.8) 46%,
+      rgb(110 235 205 / 0.6) 50%,
+      rgb(110 170 255 / 0.55) 54%,
+      transparent 66%
+    ),
+    linear-gradient(
+      180deg,
+      #f3f6f8 0%,
+      #d0d8dc 34%,
+      #8e9aa1 50%,
+      #a9b3b9 64%,
+      #e2e8eb 100%
+    );
+  background-size: 300% 100%, 100% 100%;
+  background-position: var(--sheen-x) 0, 0 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    0 10px 22px -12px rgb(0 0 0 / 0.95);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.5);
+  animation: sheen-pass 5.5s ease-in-out infinite;
+  &:hover {
+    filter: brightness(1.08) saturate(1.1);
+  }
+  &:active {
+    filter: brightness(0.94);
+  }
+}
+
+/* Gunmetal control (secondary actions, active filter chips). */
+@utility btn-gunmetal {
+  color: var(--color-gun-50);
+  background-image:
+    linear-gradient(
+      105deg,
+      transparent 38%,
+      rgb(170 240 222 / 0.22) 48%,
+      rgb(130 180 255 / 0.2) 53%,
+      transparent 62%
+    ),
+    linear-gradient(180deg, #4b555c 0%, #333b41 48%, #262d32 52%, #3a434a 100%);
+  background-size: 300% 100%, 100% 100%;
+  background-position: var(--sheen-x) 0, 0 0;
+  box-shadow:
+    inset 0 1px 0 rgb(230 238 243 / 28%),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    0 0 0 1px rgb(0 0 0 / 0.6);
+  animation: sheen-pass 6s ease-in-out infinite;
+}
+
+@layer components {
+  /* Default (primary) shadcn buttons become polished steel. Matching on the
+     variant's own bg-primary class keeps outline/ghost/etc. untouched and
+     lets callers opt out by passing another bg-* class. */
+  [data-slot="button"].bg-primary {
+    @apply btn-chrome;
+  }
+
+  /* Cards: gunmetal plate with a rim light; the rim runs with colour on
+     hover. */
+  [data-slot="card"] {
+    position: relative;
+    background-image:
+      linear-gradient(180deg, rgb(220 232 238 / 4.5%), transparent 120px),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 1.2%) 0 1px, transparent 1px 3px);
+  }
+  [data-slot="card"]::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgb(226 236 242 / 30%) 30%, rgb(226 236 242 / 30%) 70%, transparent);
+  }
+  [data-slot="card"]:hover::before,
+  [data-slot="card"]:focus-within::before {
+    @apply flow-line;
+  }
+
+  /* ── Spike star: a CSS chrome burst whose light follows the cursor ── */
+  .spike-star {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    aspect-ratio: 1;
+    filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.6));
+    transform: perspective(500px) rotateX(calc(var(--my, 0) * -16deg))
+      rotateY(calc(var(--mx, 0) * 18deg));
+  }
+  .spike-star > span {
+    position: absolute;
+    inset: 0;
+  }
+  .spike-star-body {
+    clip-path: var(--clip);
+    background-image:
+      repeating-conic-gradient(
+        from calc(-180deg / var(--n)),
+        rgb(255 255 255 / 0.5) 0 calc(180deg / var(--n)),
+        rgb(0 0 0 / 0.62) 0 calc(360deg / var(--n))
+      ),
+      conic-gradient(
+        from calc(var(--spin) + var(--mx, 0) * 150deg + var(--my, 0) * 50deg),
+        var(--s0) 0deg,
+        var(--s1) 55deg,
+        var(--s2) 120deg,
+        var(--s3) 190deg,
+        var(--s4) 260deg,
+        var(--s0) 360deg
+      );
+    background-blend-mode: overlay, normal;
+    animation: spin-light var(--spin-dur, 14s) linear var(--delay, 0s) infinite;
+  }
+  .spike-star-back {
+    clip-path: var(--clip-back);
+    background-image:
+      repeating-conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.32) 0 calc(180deg / var(--n)),
+        rgb(0 0 0 / 0.6) 0 calc(360deg / var(--n))
+      ),
+      conic-gradient(
+        from calc(var(--spin) * -1 + var(--mx, 0) * -110deg),
+        #0d1013 0deg,
+        #6d7a83 70deg,
+        #161b1f 150deg,
+        #4a565e 240deg,
+        #0d1013 360deg
+      );
+    background-blend-mode: overlay, normal;
+    animation: spin-light 21s linear var(--delay, 0s) infinite;
+  }
+  .spike-star-glint {
+    clip-path: var(--clip);
+    mix-blend-mode: screen;
+    background-image: conic-gradient(
+      from calc(var(--spin) * -1 + var(--mx, 0) * -200deg),
+      transparent 0deg,
+      rgb(120 245 215 / 0.55) 28deg,
+      transparent 62deg,
+      transparent 170deg,
+      rgb(100 160 255 / 0.6) 205deg,
+      transparent 240deg
+    );
+    animation: spin-light 9s linear var(--delay, 0s) infinite;
+  }
+  .spike-star > .spike-star-core {
+    inset: var(--core-inset, 39%);
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at calc(38% + var(--mx, 0) * 22%) calc(32% + var(--my, 0) * 22%),
+      #ffffff 0%,
+      #b7c2c8 16%,
+      #3d474e 52%,
+      #0b0e10 82%
+    );
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
+  }
+
+  /* ── Thorn row: a chrome rail with a fringe of spikes ── */
+  .thorn-row {
+    position: relative;
+    display: block;
+    height: var(--thorn-h, 18px);
+  }
+  .thorn-row > span {
+    position: absolute;
+    inset-inline: 0;
+  }
+  .thorn-row-rail {
+    top: 0;
+    height: 3px;
+    background: linear-gradient(180deg, #e8eef1, #6f7b83 55%, #1c2226);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.6);
+  }
+  .thorn-row-spikes {
+    top: 2px;
+    bottom: 0;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 20' preserveAspectRatio='none'%3E%3Cpath d='M0 0h12L6 20zM12 0h12l-6 9zM24 0h12l-6 14zM36 0h12l-6 6zM48 0h12l-6 17zM60 0h12l-6 10z'/%3E%3C/svg%3E")
+      0 0 / 72px 100% repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 20' preserveAspectRatio='none'%3E%3Cpath d='M0 0h12L6 20zM12 0h12l-6 9zM24 0h12l-6 14zM36 0h12l-6 6zM48 0h12l-6 17zM60 0h12l-6 10z'/%3E%3C/svg%3E")
+      0 0 / 72px 100% repeat-x;
+    background-image:
+      linear-gradient(90deg, rgb(255 255 255 / 0.45) 0 50%, rgb(0 0 0 / 0.55) 50% 100%),
+      linear-gradient(
+        90deg,
+        #20272c,
+        #6f7c85 calc(30% + var(--mx, 0) * 30%),
+        #eef3f5 calc(50% + var(--mx, 0) * 30%),
+        #6f7c85 calc(70% + var(--mx, 0) * 30%),
+        #20272c
+      );
+    background-size: 12px 100%, 100% 100%;
+    background-blend-mode: overlay, normal;
+    filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.6));
+  }
+  .thorn-row[data-dir="up"] {
+    transform: scaleY(-1);
+  }
+
+  /* ── Screw head ── */
+  .screw {
+    position: absolute;
+    width: var(--screw, 7px);
+    height: var(--screw, 7px);
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at calc(35% + var(--mx, 0) * 25%) calc(30% + var(--my, 0) * 25%),
+      #f3f6f8,
+      #8e9aa1 45%,
+      #262d32 85%
+    );
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.65),
+      0 1px 0 1px rgb(255 255 255 / 0.06);
+  }
+  .screw::after {
+    content: "";
+    position: absolute;
+    inset-inline: 14%;
+    top: calc(50% - 0.5px);
+    height: 1px;
+    background: rgb(0 0 0 / 0.75);
+    transform: rotate(var(--a, 30deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-draw,
+  .animate-route-pulse,
+  .animate-sheen,
+  .animate-pulse-glow,
+  .animate-float,
+  .text-chrome,
+  .text-chrome-brand,
+  .flow-line,
+  .flow-line-y,
+  .flow-edge::after,
+  .chrome-ring,
+  .btn-chrome,
+  .btn-gunmetal,
+  [data-slot="button"].bg-primary,
+  [data-slot="card"]::before,
+  .spike-star-body,
+  .spike-star-back,
+  .spike-star-glint {
+    animation: none !important;
+  }
+  .animate-route-pulse {
+    display: none;
+  }
 }

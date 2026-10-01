@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Chakra_Petch, Dela_Gothic_One, Geist_Mono, Saira, Zen_Dots } from "next/font/google";
+import { Chakra_Petch, Geist_Mono, Saira, Zen_Dots } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { PointerVars } from "@/components/metal/pointer-vars";
 import "./globals.css";
 
 const chakraPetch = Chakra_Petch({
@@ -12,14 +13,6 @@ const chakraPetch = Chakra_Petch({
 // Display face: heavy rounded techno, thickened further by `font-display`
 const zenDots = Zen_Dots({
   variable: "--font-zen",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-// Katakana only (`font-jp`): Google serves CJK glyphs as unicode-range
-// chunks, so only the characters on the page are downloaded.
-const dela = Dela_Gothic_One({
-  variable: "--font-dela",
   subsets: ["latin"],
   weight: "400",
 });
@@ -50,9 +43,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${chakraPetch.variable} ${zenDots.variable} ${dela.variable} ${saira.variable} ${geistMono.variable}`}
+      className={`${chakraPetch.variable} ${zenDots.variable} ${saira.variable} ${geistMono.variable}`}
     >
       <body className="antialiased">
+        {/* Feeds the cursor position to the CSS chrome (--mx / --my) */}
+        <PointerVars />
         <Providers>{children}</Providers>
       </body>
     </html>

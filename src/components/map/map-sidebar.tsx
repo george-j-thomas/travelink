@@ -56,14 +56,16 @@ export function MapSidebar({
       {/* ── Panel ────────────────────────────────────────────── */}
       <div
         className={cn(
-          "flex h-full w-80 shrink-0 flex-col border-r border-border/30 bg-background/95 backdrop-blur-xl transition-[margin] duration-300 ease-out",
+          "glass relative flex h-full w-80 shrink-0 flex-col transition-[margin] duration-300 ease-out",
           isOpen ? "ml-0" : "-ml-80",
         )}
       >
+        <span aria-hidden="true" className="flow-line-y absolute inset-y-0 right-0 w-px" />
+
         {/* Header */}
-        <div className="flex items-center gap-2 border-b border-border/30 px-4 py-3">
-          <Users className="size-4 text-brand-500" />
-          <h2 className="text-sm font-semibold text-foreground">
+        <div className="metal-bar flex items-center gap-2 px-4 py-3">
+          <Users className="size-4 text-brand-300" />
+          <h2 className="font-wide text-xs font-bold tracking-[0.12em] text-foreground uppercase">
             Nearby Artists
           </h2>
           <span className="ml-auto rounded-full bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-500">
@@ -165,7 +167,7 @@ export function MapSidebar({
       {/* ── Toggle tab ───────────────────────────────────────── */}
       <button
         onClick={onToggle}
-        className="mt-20 flex h-14 w-7 shrink-0 items-center justify-center rounded-r-xl border border-l-0 border-border/30 bg-background/90 text-muted-foreground backdrop-blur-xl transition-colors hover:bg-muted hover:text-foreground"
+        className="btn-gunmetal mt-20 flex h-14 w-7 shrink-0 items-center justify-center rounded-r-xl transition-[filter] hover:brightness-125"
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
         aria-expanded={isOpen}
       >

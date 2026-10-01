@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { InstagramIcon } from "@/components/icons/instagram";
+import { Screws } from "@/components/metal/ornaments";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +66,10 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="border border-foreground/20 shadow-[0_22px_40px_-24px_rgb(0_0_0/0.35)] ring-0">
+    <Card className="metal-surface flow-edge border-0 ring-0 [--edge-dur:7s]">
+      <Screws />
       <CardHeader className="pb-2 text-center">
-        <CardTitle className="font-display text-2xl tracking-tight">
+        <CardTitle className="font-display text-2xl tracking-tight text-chrome">
           Welcome back
         </CardTitle>
         <CardDescription>

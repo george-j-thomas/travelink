@@ -36,7 +36,7 @@ export function MapFilters({
   return (
     <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
       <nav
-        className="flex items-center gap-1 rounded-xl border border-border/50 bg-background/80 p-1 shadow-lg shadow-black/20 backdrop-blur-xl backdrop-saturate-150"
+        className="glass flow-edge relative flex items-center gap-1 rounded-xl p-1 [--edge-dur:8s]"
         aria-label="Map filters"
       >
         {/* ── Type filters ── */}
@@ -50,7 +50,7 @@ export function MapFilters({
               className={cn(
                 "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-brand-500 text-white shadow-sm"
+                  ? "btn-gunmetal"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               aria-pressed={isActive}
@@ -63,7 +63,7 @@ export function MapFilters({
 
         {/* ── Separator ── */}
         <div
-          className="mx-0.5 h-5 w-px bg-border/50"
+          className="mx-0.5 h-5 w-px bg-white/10"
           role="separator"
           aria-orientation="vertical"
         />

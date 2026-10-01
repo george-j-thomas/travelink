@@ -245,7 +245,7 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto grid max-w-4xl gap-6 px-4 py-8 sm:px-6">
-      <h1 className="font-display text-2xl tracking-tight">Admin</h1>
+      <h1 className="font-display text-2xl tracking-tight text-chrome">Admin</h1>
 
       {error && (
         <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -332,7 +332,6 @@ export default function AdminPage() {
             <Button
               type="submit"
               disabled={creating}
-              className="bg-brand-500 text-white hover:bg-brand-600"
             >
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               Create invite

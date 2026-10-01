@@ -515,7 +515,7 @@ export default function ImportArtistsPage() {
       {/* ============================================================ */}
       {step === "method" && (
         <>
-          <h1 className="mb-6 font-display text-xl tracking-tight">
+          <h1 className="mb-6 font-display text-xl tracking-tight text-chrome">
             Import Artists
           </h1>
 
@@ -679,7 +679,7 @@ export default function ImportArtistsPage() {
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-brand-500 font-medium text-white hover:bg-brand-600"
+                    className="w-full font-medium"
                     disabled={isFetching || !cookie}
                   >
                     {isFetching ? (
@@ -864,7 +864,7 @@ export default function ImportArtistsPage() {
             <Button
               onClick={saveSelected}
               disabled={selectedHandles.size === 0 || isSaving}
-              className="w-full bg-brand-500 font-medium text-white hover:bg-brand-600 sm:w-auto"
+              className="w-full font-medium sm:w-auto"
             >
               {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -7,6 +7,8 @@ import { LogOut, MapPin, ShieldCheck, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { BrandMark } from "@/components/brand/marks"
+import { MetalCanvas } from "@/components/metal/metal-canvas"
+import { SpikeStar } from "@/components/metal/ornaments"
 import { Button } from "@/components/ui/button"
 import {
   Avatar,
@@ -55,13 +57,20 @@ export function Navbar() {
       : null)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
+    <header className="metal-bar sticky top-0 z-40 w-full">
+      {/* Moving sheen across the gunmetal */}
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 animate-sheen opacity-60" />
       <nav
-        className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6"
+        className="relative mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6"
         aria-label="Main"
       >
-        {/* ── Brand ── */}
-        <Link href="/artists" aria-label="Travelink home" className="mr-4">
+        {/* ── Brand: live chrome emblem + wordmark ── */}
+        <Link href="/artists" aria-label="Travelink home" className="mr-4 flex items-center gap-0.5">
+          <MetalCanvas
+            scene="emblem"
+            className="-my-2 -ml-3 size-12"
+            fallback={<SpikeStar className="m-2.5 size-7" points={10} seed={5} />}
+          />
           <BrandMark />
         </Link>
 
@@ -76,22 +85,21 @@ export function Navbar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "relative px-3 py-1.5 font-wide text-[0.68rem] font-bold uppercase tracking-[0.12em] transition-colors",
+                  "relative flex items-center gap-2 rounded-full px-3.5 py-1.5 font-wide text-[0.68rem] font-bold uppercase tracking-[0.12em] transition-colors",
                   isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    ? "btn-gunmetal"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
-                {label}
-
-                {/* Active indicator — vermilion underline */}
+                {/* Active indicator: a lit diode */}
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-x-1 -bottom-[calc(0.75rem+1px)] h-[3px] bg-brand-500"
+                    className="size-1.5 rounded-full bg-brand-300 shadow-[0_0_6px_2px_rgb(39_200_161/0.7)]"
                   />
                 )}
+                {label}
               </Link>
             )
           })}
@@ -105,17 +113,20 @@ export function Navbar() {
           <DropdownMenuTrigger
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <Avatar size="default" className="cursor-pointer transition-opacity hover:opacity-80">
-              {user?.image && (
-                <AvatarImage
-                  src={user.image}
-                  alt={user.name ?? "User avatar"}
-                />
-              )}
-              <AvatarFallback className="bg-brand-500/15 text-brand-500 text-xs font-semibold">
-                {getUserInitials(user?.name, user?.email)}
-              </AvatarFallback>
-            </Avatar>
+            <span className="relative block rounded-full p-[3px]">
+              <span aria-hidden="true" className="chrome-ring absolute inset-0 [--ring-w:2px]" />
+              <Avatar size="default" className="cursor-pointer transition-opacity hover:opacity-80">
+                {user?.image && (
+                  <AvatarImage
+                    src={user.image}
+                    alt={user.name ?? "User avatar"}
+                  />
+                )}
+                <AvatarFallback className="bg-[radial-gradient(circle_at_35%_30%,#3a444b,#14181b_80%)] text-gun-100 text-xs font-semibold">
+                  {getUserInitials(user?.name, user?.email)}
+                </AvatarFallback>
+              </Avatar>
+            </span>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" sideOffset={8} className="w-56">
@@ -155,6 +166,7 @@ export function Navbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </nav>
+      <span aria-hidden="true" className="flow-line pointer-events-none absolute inset-x-0 bottom-0 h-0.5" />
     </header>
   )
 }

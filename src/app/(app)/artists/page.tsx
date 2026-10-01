@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { OnboardingGuide } from "@/components/onboarding-guide"
+import { Screws } from "@/components/metal/ornaments"
 import {
   formatResumeTime,
   useBioQueue,
@@ -146,8 +147,9 @@ function SkeletonCard() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
-        <UserRound className="size-10 text-brand-500/80" strokeWidth={1.5} />
+      <div className="metal-surface relative mb-6 flex size-20 items-center justify-center rounded-2xl">
+        <Screws inset={5} size={4} />
+        <UserRound className="size-10 text-brand-300" strokeWidth={1.5} />
       </div>
 
       <h2 className="text-lg font-medium text-foreground">No artists yet</h2>
@@ -158,7 +160,7 @@ function EmptyState() {
 
       <Link href="/artists/import" className="mt-6">
         <Button
-          className="bg-brand-500 font-medium text-white hover:bg-brand-600"
+          className="font-medium"
           size="lg"
         >
           <Upload className="size-4" />
@@ -463,7 +465,7 @@ export default function ArtistsPage() {
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl tracking-tight">
+        <h1 className="font-display text-2xl tracking-tight text-chrome">
           Your Artists
           {!loading && artists.length > 0 && (
             <span className="ml-2 align-baseline text-base font-normal text-muted-foreground">
@@ -495,7 +497,7 @@ export default function ArtistsPage() {
             </Link>
 
             <Link href="/artists/import" className="shrink-0">
-              <Button className="bg-brand-500 font-medium text-white hover:bg-brand-600">
+              <Button className="font-medium">
                 <Upload className="size-4" />
                 <span className="hidden sm:inline">Import Artists</span>
                 <span className="sm:hidden">Import</span>

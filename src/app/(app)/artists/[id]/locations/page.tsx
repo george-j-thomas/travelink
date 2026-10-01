@@ -451,7 +451,7 @@ export default function ArtistLocationsPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl tracking-tight text-foreground">
+          <h1 className="font-display text-2xl tracking-tight text-chrome">
             Locations
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -472,7 +472,7 @@ export default function ArtistLocationsPage() {
               setShowAddForm(true)
               setEditingId(null)
             }}
-            className="shrink-0 bg-brand-500 text-white hover:bg-brand-600"
+            className="shrink-0"
           >
             <Plus className="size-3.5" />
             Add Location
@@ -553,7 +553,7 @@ export default function ArtistLocationsPage() {
 
                 <Button
                   onClick={() => setShowAddForm(true)}
-                  className="mt-5 bg-brand-500 text-white hover:bg-brand-600"
+                  className="mt-5"
                   size="sm"
                 >
                   <Plus className="size-3.5" />
