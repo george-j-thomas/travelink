@@ -104,6 +104,8 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 
 ### Git
 - Never add `Co-authored-by` trailers (or any AI attribution) to commit messages, PR/MR titles, or PR/MR descriptions
+- If you are working on a non-main branch, always commit and push unless told otherwise, and always open a PR
+- Open PRs only as the repo owner (`george-j-thomas`), never from another GitHub account
 
 ## Things to Avoid
 
