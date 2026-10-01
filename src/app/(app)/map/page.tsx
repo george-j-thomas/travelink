@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Plus,
   RefreshCw,
+  UserRoundPlus,
 } from "lucide-react"
 import type { MapRef } from "react-map-gl/mapbox"
 
@@ -14,6 +15,14 @@ import { ArtistMap } from "@/components/map/artist-map"
 import { MapFilters } from "@/components/map/map-filters"
 import { MapSidebar } from "@/components/map/map-sidebar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types
@@ -116,6 +125,66 @@ function EmptyState() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   No-artists modal (new users)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function NoArtistsModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="mb-1 flex size-12 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+            <UserRoundPlus className="size-6 text-amber-500/90" strokeWidth={1.5} />
+          </div>
+          <DialogTitle>Add artists to fill your map</DialogTitle>
+          <DialogDescription>
+            Your map is empty because you haven&apos;t saved any artists yet.
+            Head to the Artists tab to import your Instagram following or add
+            artists by hand — they&apos;ll appear here once we find their
+            locations.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter showCloseButton>
+          <Link href="/artists">
+            <Button className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400 sm:w-auto">
+              <UserRoundPlus className="size-4" />
+              Go to Artists
+            </Button>
+          </Link>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Empty map backdrop (shown behind the no-artists modal)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function EmptyMapBackdrop() {
+  return (
+    <div className="fixed inset-x-0 top-14 bottom-0 z-10 bg-background">
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4 px-4 text-center opacity-60">
+          <div className="flex size-20 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+            <MapPin className="size-10 text-amber-500/80" strokeWidth={1.5} />
+          </div>
+          <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Nothing on the map yet.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    Page
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -127,6 +196,8 @@ export default function MapPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [visibleFeatures, setVisibleFeatures] = useState<GeoJSON.Feature[]>([])
+  const [artistCount, setArtistCount] = useState<number | null>(null)
+  const [modalDismissed, setModalDismissed] = useState(false)
 
   /* ── Data fetching ── */
   const fetchData = useCallback(async (filter: FilterType) => {
@@ -150,6 +221,22 @@ export default function MapPage() {
   useEffect(() => {
     fetchData(activeFilter)
   }, [activeFilter, fetchData])
+
+  /* ── Artist count (gates the new-user modal) ── */
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/artists")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((artists: unknown[]) => {
+        if (!cancelled) setArtistCount(Array.isArray(artists) ? artists.length : 0)
+      })
+      .catch(() => {
+        if (!cancelled) setArtistCount(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   /* ── Event handlers ── */
   const handleFilterChange = useCallback((filter: FilterType) => {
@@ -175,13 +262,33 @@ export default function MapPage() {
   /* ── Render ── */
   if (loading) return <MapSkeleton />
   if (error) return <MapError onRetry={() => fetchData(activeFilter)} />
-  if (!data || data.features.length === 0) return <EmptyState />
+
+  const hasFeatures = !!data && data.features.length > 0
+
+  if (!hasFeatures) {
+    // New user with nothing saved → prompt them to add artists.
+    if (artistCount === 0) {
+      return (
+        <>
+          <EmptyMapBackdrop />
+          <NoArtistsModal
+            open={!modalDismissed}
+            onOpenChange={(open) => setModalDismissed(!open)}
+          />
+        </>
+      )
+    }
+    // Still resolving the artist count — avoid flashing the wrong empty state.
+    if (artistCount === null) return <MapSkeleton />
+    // Has artists, but none are mapped yet.
+    return <EmptyState />
+  }
 
   return (
     <div className="fixed inset-x-0 top-14 bottom-0 z-10">
       <ArtistMap
         ref={mapRef}
-        data={data}
+        data={data!}
         onVisibleFeaturesChange={handleVisibleFeaturesChange}
       />
 
