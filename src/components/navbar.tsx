@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react"
 import { LogOut, MapPin, ShieldCheck, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { forgetInstagramCookie } from "@/hooks/use-instagram-cookie"
 import { Button } from "@/components/ui/button"
 import {
   Avatar,
@@ -154,7 +155,10 @@ export function Navbar() {
             )}
 
             <DropdownMenuItem
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => {
+                forgetInstagramCookie()
+                signOut({ callbackUrl: "/login" })
+              }}
             >
               <LogOut className="mr-2 size-4" />
               Sign out

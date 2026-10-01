@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { DEV_AUTH_BYPASS, DEV_USER_ID } from "@/lib/dev-auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers devUserId={DEV_AUTH_BYPASS ? DEV_USER_ID : null}>{children}</Providers>
       </body>
     </html>
   );

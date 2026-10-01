@@ -69,7 +69,8 @@ Open [http://localhost:3000](http://localhost:3000).
    otherwise your session cookie)
 5. Bios are fetched in the background while you have any Travelink page open, then placed on the **Map**
 
-The session cookie is remembered in your browser only (never stored on the server) and is used only to
+The session cookie is kept only in the open tab's memory and is dropped when you reload or close the tab or sign out.
+It's never stored on the server, which only accepts it from the Travelink account that connected it. It's used only to
 read your following list, and to search when HikerAPI isn't set up. Bios come from the official Business Discovery
 API, with HikerAPI as a fallback. If a source is rate limited
 the queue pauses and resumes by itself. Nothing is lost.

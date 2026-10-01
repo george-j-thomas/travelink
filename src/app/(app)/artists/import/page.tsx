@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -33,6 +32,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useBioQueue } from "@/components/bio-queue"
+import { useCurrentUserId } from "@/hooks/use-current-user-id"
 import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
@@ -150,10 +150,7 @@ function InstructionStep({
 
 export default function ImportArtistsPage() {
   const router = useRouter()
-  const { data: session, status: sessionStatus } = useSession()
-  // Inside the (app) layout "unauthenticated" only happens with the dev auth bypass
-  const userId =
-    session?.user?.id ?? (sessionStatus === "unauthenticated" ? "dev-user" : null)
+  const userId = useCurrentUserId()
   const { kick: startBioQueue } = useBioQueue()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
@@ -168,7 +165,7 @@ export default function ImportArtistsPage() {
     save: saveCookie,
     clear: clearSavedCookie,
   } = useInstagramCookie()
-  // A freshly pasted cookie wins over the one remembered in this browser
+  // A freshly pasted cookie wins over the one kept from earlier in this tab
   const cookie = sessionCookie.trim() || savedCookie
   const [isUploading, setIsUploading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
@@ -362,7 +359,7 @@ export default function ImportArtistsPage() {
       const res = await fetch("/api/import/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: cookie }),
+        body: JSON.stringify({ sessionId: cookie, ownerId: userId }),
       })
 
       if (res.status === 401) {
@@ -617,7 +614,7 @@ export default function ImportArtistsPage() {
                 </CardTitle>
                 <CardDescription className="text-[13px] leading-relaxed">
                   Pull your following list with your Instagram session cookie.
-                  It&apos;s only used for this list, never for fetching bios
+                  It&apos;s also used for artist search, never for fetching bios
                 </CardDescription>
               </CardHeader>
 
@@ -666,7 +663,7 @@ export default function ImportArtistsPage() {
                     />
                     {savedCookie && (
                       <p className="text-xs text-muted-foreground">
-                        Remembered in this browser only.{" "}
+                        Kept in this tab until you reload or close it, or sign out.{" "}
                         <button
                           type="button"
                           onClick={clearSavedCookie}

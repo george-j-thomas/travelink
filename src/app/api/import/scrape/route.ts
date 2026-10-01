@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import {
+  assertCookieOwner,
   scrapeFollowing,
   ScraperAuthError,
   ScraperRateLimitError,
@@ -11,8 +12,9 @@ export const maxDuration = 300
 
 // POST /api/import/scrape — Fetch following list using Instagram session cookie
 export async function POST(request: NextRequest) {
+  let session
   try {
-    await requireSession()
+    session = await requireSession()
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { sessionId } = body as { sessionId?: unknown }
+  const { sessionId, ownerId } = body as { sessionId?: unknown; ownerId?: unknown }
 
   if (!sessionId || typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return NextResponse.json(
@@ -37,6 +39,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    assertCookieOwner(ownerId, session.user.id)
     const accounts = await scrapeFollowing({
       sessionId,
       userAgent: request.headers.get("user-agent") ?? undefined,

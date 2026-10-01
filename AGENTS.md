@@ -73,6 +73,8 @@ Admin routes use `requireAdmin()` the same way, returning 403 when the error is 
 
 Import `requireSession` from `@/lib/auth`, never import `authOptions` from the route handler (circular dep risk) — use `@/lib/auth-options`.
 
+Client components get the signed-in user's ID from `useCurrentUserId()` (`src/hooks/`), which also covers the dev auth bypass. Key per-user browser state by it.
+
 ### Prisma
 - All models use `@@map("snake_case_table")` and `@map("snake_case_column")`
 - String enums over Prisma enums (easier to extend without migrations)
@@ -112,7 +114,7 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Do not hand-edit files in `src/components/ui/` — they are managed by shadcn
 - Do not import `authOptions` from `src/app/api/auth/[...nextauth]/route.ts` — use `@/lib/auth-options`
 - Do not use Prisma enums — use string fields with conventions documented in comments
-- Do not store Instagram session cookies in the database — the browser keeps it (localStorage, via `useInstagramCookie` in `src/hooks/`) and sends it with each request; the server holds it only for that request
+- Do not persist the Instagram session cookie anywhere — not the database, logs, localStorage or sessionStorage. `useInstagramCookie` (`src/hooks/`) holds it in tab memory for the signed-in Travelink user only, and drops it on sign-out, session end, the sign-in pages, and tab reload/close. It's sent with each request that needs it, along with `ownerId` (the user it was connected under); routes call `assertCookieOwner` before using it and hold it only for that request
 - Instagram cookie rejections return 403 with `code: "instagram_session"`, never 401 — clients treat 401 as a Travelink logout
 - Do not add in-memory background jobs — the app is deployed on Vercel (serverless); long work must be client-driven or step-based
 - Do not wrap slow external API calls (Instagram, Claude, Mapbox) in Prisma transactions
