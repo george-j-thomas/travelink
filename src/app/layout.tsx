@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Chakra_Petch, Geist_Mono, Saira } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const chakraPetch = Chakra_Petch({
+  variable: "--font-chakra",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+// Variable width axis lets `font-display` stretch to 125% (extended techno face)
+const saira = Saira({
+  variable: "--font-saira",
+  subsets: ["latin"],
+  axes: ["wdth"],
+  style: ["normal", "italic"],
 });
 
 const geistMono = Geist_Mono({
@@ -25,10 +34,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html
+      lang="en"
+      className={`dark ${chakraPetch.variable} ${saira.variable} ${geistMono.variable}`}
+    >
+      <body className="antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

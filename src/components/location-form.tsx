@@ -78,7 +78,7 @@ function TogglePill({
   checked,
   onChange,
   label,
-  accentClass = "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  accentClass = "border-brand-500/30 bg-brand-500/10 text-brand-400",
 }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -291,9 +291,9 @@ export function LocationForm({
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* ── Bio-parsed warning ────────────────────────────────── */}
       {isBioParsed && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
-          <p className="text-sm leading-relaxed text-amber-300/90">
+        <div className="flex items-start gap-3 rounded-lg border border-brand-500/20 bg-brand-500/5 px-4 py-3">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-500" />
+          <p className="text-sm leading-relaxed text-brand-300/90">
             This location was auto-detected from the artist&apos;s bio. Editing
             it will mark it as manually set and it won&apos;t be updated on bio
             refresh.
@@ -357,7 +357,7 @@ export function LocationForm({
                 className={cn(
                   "flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm transition-colors",
                   idx === highlightIdx
-                    ? "bg-amber-500/10 text-foreground"
+                    ? "bg-brand-500/10 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -365,7 +365,7 @@ export function LocationForm({
                   className={cn(
                     "size-3.5 shrink-0",
                     idx === highlightIdx
-                      ? "text-amber-500"
+                      ? "text-brand-500"
                       : "text-muted-foreground/40",
                   )}
                 />
@@ -452,13 +452,13 @@ export function LocationForm({
           checked={isPrimary}
           onChange={setIsPrimary}
           label="Primary location"
-          accentClass="border-amber-500/30 bg-amber-500/10 text-amber-400"
+          accentClass="border-brand-500/30 bg-brand-500/10 text-brand-400"
         />
         <TogglePill
           checked={isGuestSpot}
           onChange={setIsGuestSpot}
           label="Guest spot"
-          accentClass="border-purple-500/30 bg-purple-500/10 text-purple-400"
+          accentClass="border-guest-500/30 bg-guest-500/10 text-guest-400"
         />
       </div>
 
@@ -496,7 +496,7 @@ export function LocationForm({
         <Button
           type="submit"
           disabled={saving}
-          className="bg-amber-500 text-black hover:bg-amber-400"
+          className="bg-brand-500 text-black hover:bg-brand-400"
         >
           {saving && <Loader2 className="size-3.5 animate-spin" />}
           {saving ? "Saving…" : isEditing ? "Update location" : "Save location"}

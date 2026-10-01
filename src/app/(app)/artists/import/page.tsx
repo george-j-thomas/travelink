@@ -136,7 +136,7 @@ function InstructionStep({
 }) {
   return (
     <li className="flex gap-2.5">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-[11px] font-semibold text-amber-400">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[11px] font-semibold text-brand-400">
         {number}
       </span>
       <span className="pt-px leading-5">{children}</span>
@@ -515,7 +515,7 @@ export default function ImportArtistsPage() {
       {/* ============================================================ */}
       {step === "method" && (
         <>
-          <h1 className="mb-6 text-xl font-semibold tracking-tight">
+          <h1 className="mb-6 font-display text-xl font-black uppercase tracking-tight">
             Import Artists
           </h1>
 
@@ -531,8 +531,8 @@ export default function ImportArtistsPage() {
             {/* Card A — Upload Data Export */}
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
-                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Upload className="h-5 w-5 text-amber-400" />
+                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
+                  <Upload className="h-5 w-5 text-brand-400" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Upload Data Export
@@ -573,8 +573,8 @@ export default function ImportArtistsPage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
                     isDragOver
-                      ? "border-amber-500/60 bg-amber-500/5"
-                      : "border-border/60 hover:border-amber-500/40 hover:bg-amber-500/5"
+                      ? "border-brand-500/60 bg-brand-500/5"
+                      : "border-border/60 hover:border-brand-500/40 hover:bg-brand-500/5"
                   }`}
                   role="button"
                   tabIndex={0}
@@ -586,7 +586,7 @@ export default function ImportArtistsPage() {
                   }}
                 >
                   {isUploading ? (
-                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+                    <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
                   ) : (
                     <Download className="h-6 w-6 text-muted-foreground/60" />
                   )}
@@ -609,8 +609,8 @@ export default function ImportArtistsPage() {
             {/* Card B — Paste Session Cookie */}
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
-                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Cookie className="h-5 w-5 text-amber-400" />
+                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
+                  <Cookie className="h-5 w-5 text-brand-400" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Paste Session Cookie
@@ -679,7 +679,7 @@ export default function ImportArtistsPage() {
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400"
+                    className="w-full bg-brand-500 font-medium text-black hover:bg-brand-400"
                     disabled={isFetching || !cookie}
                   >
                     {isFetching ? (
@@ -748,7 +748,7 @@ export default function ImportArtistsPage() {
             {notice && (
               <div
                 role="status"
-                className="flex items-start gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+                className="flex items-start gap-2.5 rounded-lg border border-guest-400/25 bg-guest-400/10 px-4 py-3 text-sm text-guest-300"
               >
                 <Check className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
@@ -778,7 +778,7 @@ export default function ImportArtistsPage() {
                   type="checkbox"
                   checked={hideTracked}
                   onChange={(e) => setHideTracked(e.target.checked)}
-                  className="h-4 w-4 rounded border-border accent-amber-500"
+                  className="h-4 w-4 rounded border-border accent-brand-500"
                 />
                 Hide added
               </label>
@@ -818,7 +818,7 @@ export default function ImportArtistsPage() {
                         isTracked
                           ? "opacity-50"
                           : isSelected
-                            ? "bg-amber-500/5"
+                            ? "bg-brand-500/5"
                             : "hover:bg-muted/30"
                       }`}
                     >
@@ -827,7 +827,7 @@ export default function ImportArtistsPage() {
                         checked={isTracked || isSelected}
                         disabled={isTracked}
                         onChange={() => toggleHandle(handle)}
-                        className="h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+                        className="h-4 w-4 shrink-0 rounded border-border accent-brand-500"
                         aria-label={`@${handle}`}
                       />
                       <span className="min-w-0 truncate text-sm">
@@ -864,7 +864,7 @@ export default function ImportArtistsPage() {
             <Button
               onClick={saveSelected}
               disabled={selectedHandles.size === 0 || isSaving}
-              className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400 sm:w-auto"
+              className="w-full bg-brand-500 font-medium text-black hover:bg-brand-400 sm:w-auto"
             >
               {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

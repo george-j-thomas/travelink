@@ -412,8 +412,8 @@ export default function AddArtistPage() {
         <Card className="border-border/50 shadow-2xl shadow-black/25">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15">
-                <Check className="h-3 w-3 text-emerald-400" />
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-guest-400/15">
+                <Check className="h-3 w-3 text-guest-300" />
               </span>
               <CardTitle>
                 {result.status === "existing"
@@ -474,7 +474,7 @@ export default function AddArtistPage() {
                       variant="secondary"
                       className={
                         loc.isPrimary
-                          ? "border border-amber-500/30 bg-amber-500/10 text-amber-200"
+                          ? "border border-brand-500/30 bg-brand-500/10 text-brand-200"
                           : ""
                       }
                     >
@@ -490,9 +490,9 @@ export default function AddArtistPage() {
               result.warnings.map((warning, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2.5 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300"
+                  className="flex items-start gap-2.5 rounded-lg bg-brand-500/10 px-4 py-3 text-sm text-brand-300"
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
                   <span>{warning}</span>
                 </div>
               ))}
@@ -540,11 +540,11 @@ export default function AddArtistPage() {
                     <div className="flex flex-col items-center">
                       <span className="flex h-6 w-6 items-center justify-center">
                         {done ? (
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15">
-                            <Check className="h-3 w-3 text-emerald-400" />
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-guest-400/15">
+                            <Check className="h-3 w-3 text-guest-300" />
                           </span>
                         ) : active ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+                          <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
                         ) : (
                           <Circle className="h-2.5 w-2.5 fill-muted-foreground/20 text-muted-foreground/30" />
                         )}
@@ -553,7 +553,7 @@ export default function AddArtistPage() {
                         <span
                           aria-hidden
                           className={`my-1 h-4 w-px ${
-                            done ? "bg-emerald-500/30" : "bg-border"
+                            done ? "bg-guest-400/40" : "bg-border"
                           }`}
                         />
                       )}
@@ -667,7 +667,7 @@ export default function AddArtistPage() {
                             onClick={() => selectUser(user)}
                             onMouseEnter={() => setActive(i)}
                             className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
-                              i === active ? "bg-amber-500/10" : "hover:bg-muted/50"
+                              i === active ? "bg-brand-500/10" : "hover:bg-muted/50"
                             }`}
                           >
                             <Avatar className="size-9">
@@ -686,7 +686,7 @@ export default function AddArtistPage() {
                               <p className="flex items-center gap-1 text-sm font-medium">
                                 <span className="truncate">{user.username}</span>
                                 {user.isVerified && (
-                                  <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                                  <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-guest-300" />
                                 )}
                               </p>
                               {(user.fullName || user.isPrivate) && (
@@ -705,7 +705,7 @@ export default function AddArtistPage() {
                 </div>
 
                 {searchError ? (
-                  <p className="text-xs text-amber-300/90">{searchError}</p>
+                  <p className="text-xs text-brand-300/90">{searchError}</p>
                 ) : (
                   cookie && (
                     <p className="text-xs text-muted-foreground">
@@ -735,7 +735,7 @@ export default function AddArtistPage() {
             {!cookie && !providerSearch && (
               <div className="grid gap-2.5 rounded-lg border border-border/50 bg-muted/20 p-3.5">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <Search className="h-3.5 w-3.5 text-amber-400" />
+                  <Search className="h-3.5 w-3.5 text-brand-400" />
                   Search Instagram as you type
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground">

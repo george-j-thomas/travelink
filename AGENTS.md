@@ -78,13 +78,16 @@ Import `requireSession` from `@/lib/auth`, never import `authOptions` from the r
 - Always use the singleton from `@/lib/db`, never instantiate `PrismaClient` directly
 
 ### UI
-- Dark theme with amber (`amber-500`) accent color
-- Brand: "TRAVEL" in muted gray + "INK" in amber-500
+- Style: **Wipeout / Designers Republic techno** — loud, sharp, square corners (`--radius: 0`), extended uppercase type, HUD microcopy, chevrons, hazard stripes, grids. No literal racing/car imagery
+- Palette: **red, black and grey only — no yellow, no cyan**. Tokens in `globals.css`: `brand-200…900` (signal red, primary accent), `guest-300…600` (silver, guest spots), neutral black/grey surfaces. Use these, not raw Tailwind hues. Mapbox layers can't read CSS vars; `artist-map.tsx` mirrors them as hex
+- Fonts: `font-display` = Saira stretched to 125% width (custom utility; headings, brand, buttons; uppercase, `font-black`), `font-heading` = Saira normal width (shadcn titles), `font-sans` = Chakra Petch, `font-mono` = Geist Mono (HUD readouts)
+- Marks in `src/components/brand/marks.tsx`: `BrandMark` ("TRAVEL" grey + "INK" black on a sheared red block), `Chevrons`, `Crosshair`, `Barcode`, `CornerTicks`, `Readout` (mono microcopy). Decorative only
+- Utilities: `wx-cut` (two corners cut, size via `--cut`), `wx-slant` (parallelogram, `--slant`), `wx-outline` (hollow type, `--stroke-c`), `wx-grid` (`--grid`), `wx-hazard` (`--stripe`), `wx-hairlines`, `wx-scanlines`, `animate-wx-{wipe,rise,marquee,marquee-reverse,blink,sweep}` (all disabled under reduced motion). `clip-path` hides box-shadow and focus outlines, so pair clipped shapes with an offset sibling layer and put focus rings on an unclipped parent
 - shadcn/ui components in `src/components/ui/` — add via `npx shadcn@latest add <component>`, never create manually
-- Card styling: `border-border/50 shadow-2xl shadow-black/25`
+- Card styling: `border-border/50 shadow-2xl shadow-black/25` (auth cards: `border border-border` on a red offset slab)
 - Glassmorphic surfaces: `bg-background/80 backdrop-blur-xl backdrop-saturate-150`
-- Primary badges: amber-tinted (`border-amber-500/30 bg-amber-500/10 text-amber-200`)
-- Guest spot badges: purple-tinted
+- Primary badges: red-tinted (`border-brand-500/30 bg-brand-500/10 text-brand-200`)
+- Guest spot badges: silver-tinted (`guest-*`); success states also use silver, not green
 - Icons from `lucide-react`
 
 ### Error Handling

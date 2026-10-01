@@ -203,11 +203,11 @@ function LocationCard({ location }: { location: ArtistLocation }) {
     <Card size="sm">
       <CardContent>
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10">
             {location.isGuestSpot ? (
-              <Plane className="size-4 text-amber-500" />
+              <Plane className="size-4 text-brand-500" />
             ) : (
-              <MapPin className="size-4 text-amber-500" />
+              <MapPin className="size-4 text-brand-500" />
             )}
           </div>
 
@@ -226,7 +226,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isPrimary && (
                 <Badge
                   variant="secondary"
-                  className="border border-amber-500/20 bg-amber-500/10 text-amber-400"
+                  className="border border-brand-500/20 bg-brand-500/10 text-brand-400"
                 >
                   Primary
                 </Badge>
@@ -235,7 +235,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isGuestSpot && (
                 <Badge
                   variant="secondary"
-                  className="border border-purple-500/20 bg-purple-500/10 text-purple-400"
+                  className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
                 >
                   Guest Spot
                 </Badge>
@@ -376,17 +376,17 @@ export default function ArtistDetailPage() {
       <Card>
         <CardContent>
           <div className="flex items-start gap-5">
-            <Avatar className="size-20 ring-2 ring-amber-500/20">
+            <Avatar className="size-20 ring-2 ring-brand-500/20">
               {artist.profilePicUrl && (
                 <AvatarImage src={artist.profilePicUrl} alt="" />
               )}
-              <AvatarFallback className="bg-amber-500/15 text-xl font-semibold text-amber-500">
+              <AvatarFallback className="bg-brand-500/15 text-xl font-semibold text-brand-500">
                 {initials}
               </AvatarFallback>
             </Avatar>
 
             <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              <h1 className="font-display text-2xl font-black uppercase tracking-tight text-foreground">
                 {name}
               </h1>
 
@@ -394,7 +394,7 @@ export default function ArtistDetailPage() {
                 href={`https://instagram.com/${artist.instagramHandle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group/ig inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-amber-500"
+                className="group/ig inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-brand-500"
               >
                 @{artist.instagramHandle}
                 <ExternalLink className="size-3 opacity-0 transition-opacity group-hover/ig:opacity-100" />
@@ -491,7 +491,7 @@ export default function ArtistDetailPage() {
 
           <Link
             href={`/artists/${artist.id}/locations`}
-            className="text-sm text-amber-500 transition-colors hover:text-amber-400"
+            className="text-sm text-brand-500 transition-colors hover:text-brand-400"
           >
             Edit locations
           </Link>
@@ -516,7 +516,7 @@ export default function ArtistDetailPage() {
                 </p>
                 <Link
                   href={`/artists/${artist.id}/locations`}
-                  className="mt-2 text-sm text-amber-500 transition-colors hover:text-amber-400"
+                  className="mt-2 text-sm text-brand-500 transition-colors hover:text-brand-400"
                 >
                   Add locations manually →
                 </Link>

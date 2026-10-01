@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, Download, Cookie } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 /* ─────────────────────────────────────────────────────────────────────
-   Step indicator (amber numbered circles)
+   Step indicator (red numbered circles)
    ───────────────────────────────────────────────────────────────── */
 
 function Step({
@@ -18,7 +18,7 @@ function Step({
 }) {
   return (
     <li className="flex gap-2.5">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-[11px] font-semibold text-amber-400">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[11px] font-semibold text-brand-400">
         {number}
       </span>
       <span className="pt-px leading-5">{children}</span>
@@ -70,7 +70,7 @@ export function OnboardingGuide({ defaultOpen = false }: OnboardingGuideProps) {
 
             {/* ── Data Export ── */}
             <TabsContent value="data-export">
-              <p className="mb-3 text-xs font-medium text-amber-400/80">
+              <p className="mb-3 text-xs font-medium text-brand-400/80">
                 Recommended — no password sharing
               </p>
               <ol className="grid gap-2 text-sm text-muted-foreground">
@@ -114,7 +114,7 @@ export function OnboardingGuide({ defaultOpen = false }: OnboardingGuideProps) {
                 </Step>
                 <Step number={8}>
                   Download the zip, find{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-amber-400/90">
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-brand-400/90">
                     following.json
                   </code>
                 </Step>
@@ -124,7 +124,7 @@ export function OnboardingGuide({ defaultOpen = false }: OnboardingGuideProps) {
 
             {/* ── Session Cookie ── */}
             <TabsContent value="session-cookie">
-              <p className="mb-3 text-xs font-medium text-amber-400/80">
+              <p className="mb-3 text-xs font-medium text-brand-400/80">
                 Instant — fetches your following list directly
               </p>
               <ol className="grid gap-2 text-sm text-muted-foreground">
@@ -151,7 +151,7 @@ export function OnboardingGuide({ defaultOpen = false }: OnboardingGuideProps) {
                 </Step>
                 <Step number={4}>
                   Find the cookie named{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-amber-400/90">
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-brand-400/90">
                     sessionid
                   </code>{" "}
                   and copy its value
