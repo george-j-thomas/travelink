@@ -4,3 +4,5 @@
  */
 export const DEV_AUTH_BYPASS =
   process.env.DEV_AUTH_BYPASS === "true" && process.env.NODE_ENV !== "production"
+
+export const DEV_USER_ID = "dev-user"

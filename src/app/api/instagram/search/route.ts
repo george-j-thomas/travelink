@@ -7,6 +7,7 @@ import {
   searchProviderAccounts,
 } from "@/lib/instagram-provider"
 import {
+  assertCookieOwner,
   searchUsers,
   ScraperAuthError,
   ScraperRateLimitError,
@@ -44,7 +45,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const { query, sessionId } = body as { query?: unknown; sessionId?: unknown }
+  const { query, sessionId, ownerId } = body as {
+    query?: unknown
+    sessionId?: unknown
+    ownerId?: unknown
+  }
   const q = typeof query === "string" ? query.trim().replace(/^@+/, "").trim() : ""
 
   if (q.length < MIN_QUERY || q.length > MAX_QUERY) {
@@ -84,6 +89,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    assertCookieOwner(ownerId, session.user.id)
     const users = await searchUsers(q, {
       sessionId: cookie,
       userAgent: request.headers.get("user-agent") ?? undefined,

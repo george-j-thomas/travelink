@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth-options"
-import { DEV_AUTH_BYPASS } from "@/lib/dev-auth"
+import { DEV_AUTH_BYPASS, DEV_USER_ID } from "@/lib/dev-auth"
 
 const DEV_SESSION = {
-  user: { id: "dev-user", email: "dev@travelink.app", name: "Dev User", isAdmin: true },
+  user: { id: DEV_USER_ID, email: "dev@travelink.app", name: "Dev User", isAdmin: true },
   expires: "",
 } as const
 
@@ -18,9 +18,9 @@ export class ForbiddenError extends Error {
 async function ensureDevUser() {
   const { prisma } = await import("@/lib/db")
   await prisma.user.upsert({
-    where: { id: "dev-user" },
+    where: { id: DEV_USER_ID },
     create: {
-      id: "dev-user",
+      id: DEV_USER_ID,
       email: "dev@travelink.app",
       name: "Dev User",
     },

@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useBioQueue } from "@/components/bio-queue"
+import { useCurrentUserId } from "@/hooks/use-current-user-id"
 import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +144,7 @@ export default function AddArtistPage() {
   const [result, setResult] = useState<ArtistResult | null>(null)
 
   // -- Instagram search
+  const userId = useCurrentUserId()
   const { cookie, save: saveCookie, clear: clearCookie } = useInstagramCookie()
   const [cookieDraft, setCookieDraft] = useState("")
   const [results, setResults] = useState<SearchUser[]>([])
@@ -238,7 +240,7 @@ export default function AddArtistPage() {
       const res = await fetch("/api/instagram/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, sessionId: cookie || undefined }),
+        body: JSON.stringify({ query, sessionId: cookie || undefined, ownerId: userId }),
         signal: controller.signal,
       })
 
@@ -709,7 +711,7 @@ export default function AddArtistPage() {
                 ) : (
                   cookie && (
                     <p className="text-xs text-muted-foreground">
-                      Instagram connected in this browser.{" "}
+                      Instagram connected in this tab.{" "}
                       <button
                         type="button"
                         onClick={() => {
@@ -744,7 +746,8 @@ export default function AddArtistPage() {
                     sessionid
                   </code>{" "}
                   cookie (instagram.com → F12 → Application → Cookies). It&apos;s
-                  only used for search, and is remembered in this browser only.
+                  used for search and importing your following list, and kept in
+                  this tab until you reload or close it, or sign out.
                 </p>
                 <form
                   onSubmit={(e) => {

@@ -37,6 +37,17 @@ export interface ScraperCredentials {
   userAgent?: string
 }
 
+/**
+ * Browsers send the cookie with the Travelink user it was connected under.
+ * Refuse it for anyone else, e.g. after an account switch in another tab.
+ * @throws {ScraperAuthError} so the client drops its copy
+ */
+export function assertCookieOwner(ownerId: unknown, userId: string) {
+  if (ownerId !== userId) {
+    throw new ScraperAuthError("Your Travelink account changed in another tab. Reload this page.")
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
