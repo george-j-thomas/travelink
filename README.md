@@ -32,6 +32,12 @@ each one is based and where they're guesting next.
 - Search by name, handle or city, or filter by location
 - Each artist has a page with their bio and locations. You can add or fix locations by hand, for example when the
   bio isn't public or a guest spot was only announced in a post
+- Bios are read once, when an artist is added. When an artist moves or announces new guest spots, **Refresh bio** on
+  their page reads it again. Hand-added locations are kept. If the bio was checked in the last 72 hours, Travelink
+  asks you to confirm first, since each refresh uses one of the day's bio lookups
+- **Refresh bios** on the Artists page reads every artist's bio again, in the background. It skips bios checked in
+  the last 72 hours unless you include them. Newly added artists still go first, and if the day's lookups run out,
+  the rest continue the next day
 - Removing an artist only takes them off your list. Anyone else who added them keeps them
 
 ![The Artists page: a grid of artist cards with home base and guest spot badges](docs/screenshots/artists.png)
@@ -49,6 +55,14 @@ many are left. If Instagram limits requests, the queue pauses and picks up again
 
 Bios come from Instagram Business Discovery, Instagram's official API. It only sees public Business and Creator
 accounts, so personal accounts show **No public bio**, and you can add their location by hand.
+
+That's why **Hide personal** is on by default when you import. It hides private accounts (Business and Creator
+accounts can't be private) and accounts an earlier lookup found to be personal. Instagram's list doesn't say which
+accounts are business, so some personal accounts still show. Data exports don't say which accounts are private
+either, so loading the list with your session cookie hides more.
+
+Accounts with a tattoo word in their handle or name (tattoo, tats, ink, tatuaje and a few other languages) are
+listed first, under **Likely tattoo artists**, with a button to select them all.
 
 ## Privacy
 

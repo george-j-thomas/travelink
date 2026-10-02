@@ -40,10 +40,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const text = await file.text()
+    // Data exports don't say which accounts are private
     const accounts = parseFollowingExport(text).map((username) => ({
       username,
       fullName: null,
       profilePicUrl: null,
+      isPrivate: null,
     }))
     return NextResponse.json({ accounts, count: accounts.length })
   } catch (err) {

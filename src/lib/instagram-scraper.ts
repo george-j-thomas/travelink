@@ -302,6 +302,11 @@ export interface FollowingAccount {
   username: string
   fullName: string | null
   profilePicUrl: string | null
+  /**
+   * Business/Creator accounts can't be private, so a private account never has a
+   * bio Travelink can read. Instagram's list doesn't say which accounts are business.
+   */
+  isPrivate: boolean
 }
 
 interface FollowingPage {
@@ -336,6 +341,7 @@ async function fetchFollowingPage(
       username: String(u.username),
       fullName: typeof u.full_name === "string" && u.full_name ? u.full_name : null,
       profilePicUrl: typeof u.profile_pic_url === "string" ? u.profile_pic_url : null,
+      isPrivate: u.is_private === true,
     }))
 
   const nextMaxId: string | null =

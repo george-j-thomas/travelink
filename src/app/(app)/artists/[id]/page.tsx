@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft,
+  Check,
   ExternalLink,
   MapPin,
   Plane,
+  RefreshCw,
   Trash2,
   Map,
   Loader2,
@@ -33,6 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useBioQueue } from "@/components/bio-queue"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types
@@ -59,10 +62,22 @@ interface Artist {
   bio: string | null
   profilePicUrl: string | null
   accountType: string
+  bioLastFetchedAt: string | null
   fetchStatus: "pending" | "fetched" | "unavailable" | "failed"
   fetchError: string | null
   notes: string | null
   locations: ArtistLocation[]
+}
+
+interface RefreshResponse {
+  artist: Artist
+  outcome: "fetched" | "unavailable" | "retry" | "failed" | "queued" | "in_progress"
+  warnings: string[]
+}
+
+interface Notice {
+  tone: "success" | "info" | "error"
+  message: string
 }
 
 const MISSING_BIO_TEXT: Record<Artist["fetchStatus"], string> = {
@@ -70,7 +85,20 @@ const MISSING_BIO_TEXT: Record<Artist["fetchStatus"], string> = {
   fetched: "No bio available",
   unavailable:
     "Instagram only shares bios of public Business/Creator accounts, and this isn't one. Add a location below.",
-  failed: "Couldn't fetch this bio. Add a location below, or re-add the artist to try again.",
+  failed: "Couldn't fetch this bio. Add a location below, or refresh the bio to try again.",
+}
+
+/** Shown under a bio kept from an earlier fetch, when the latest one didn't replace it. */
+const OLD_BIO_TEXT: Partial<Record<Artist["fetchStatus"], string>> = {
+  pending: "A refresh is queued. This is the bio from the last fetch.",
+  unavailable: "From an earlier fetch. Instagram no longer shares this account's bio.",
+  failed: "From an earlier fetch. The latest refresh failed.",
+}
+
+const NOTICE_CLASSES: Record<Notice["tone"], string> = {
+  success: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+  info: "border border-amber-500/20 bg-amber-500/5 text-muted-foreground",
+  error: "bg-destructive/10 text-destructive",
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -122,6 +150,39 @@ function accountTypeLabel(type: string): string {
 
 function formatCoords(lat: number, lng: number): string {
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+}
+
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (seconds < 60) return "just now"
+  const m = Math.floor(seconds / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d ago`
+  const mo = Math.floor(d / 30)
+  if (mo < 12) return `${mo}mo ago`
+  return `${Math.floor(mo / 12)}y ago`
+}
+
+function refreshNotice({ outcome, warnings }: RefreshResponse): Notice {
+  switch (outcome) {
+    case "fetched":
+      return { tone: "success", message: ["Bio refreshed.", ...warnings].join(" ") }
+    case "unavailable":
+    case "queued":
+      return { tone: "info", message: warnings.join(" ") }
+    case "in_progress":
+      return { tone: "info", message: "This bio is already being fetched. Check back in a moment." }
+    case "retry":
+      return {
+        tone: "error",
+        message: "Couldn't refresh the bio right now. It'll be retried automatically.",
+      }
+    case "failed":
+      return { tone: "error", message: "Couldn't refresh the bio." }
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -310,6 +371,11 @@ export default function ArtistDetailPage() {
   const [error, setError] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  // When the bio was last fetched, while asking the user to confirm a refresh
+  const [confirmRefreshAt, setConfirmRefreshAt] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const { kick: startBioQueue, onArtistFetched } = useBioQueue()
 
   const fetchArtist = useCallback(() => {
     if (!params.id) return
@@ -328,6 +394,51 @@ export default function ArtistDetailPage() {
   useEffect(() => {
     fetchArtist()
   }, [fetchArtist])
+
+  // Picks up a queued refresh when the background queue gets to it
+  useEffect(
+    () =>
+      onArtistFetched((updated) => {
+        if (updated.id === params.id) setArtist(updated as unknown as Artist)
+      }),
+    [onArtistFetched, params.id]
+  )
+
+  // Without `force`, the server asks for confirmation (409) if the bio is recent
+  async function refreshBio(force = false) {
+    if (!artist) return
+    setConfirmRefreshAt(null)
+    setNotice(null)
+    setRefreshing(true)
+    try {
+      const res = await fetch(`/api/artists/${artist.id}/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      })
+      if (res.status === 401) {
+        router.push("/login")
+        return
+      }
+      const data = await res.json()
+      if (res.status === 409 && data.code === "recently_refreshed") {
+        setConfirmRefreshAt(data.lastRefreshedAt)
+        return
+      }
+      if (!res.ok) {
+        setNotice({ tone: "error", message: data.error || "Couldn't refresh the bio" })
+        return
+      }
+      const result = data as RefreshResponse
+      setArtist(result.artist)
+      setNotice(refreshNotice(result))
+      if (result.outcome === "queued" || result.outcome === "retry") startBioQueue()
+    } catch {
+      setNotice({ tone: "error", message: "Network error — check your connection and try again" })
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   function handleDelete() {
     if (!artist) return
@@ -410,24 +521,106 @@ export default function ArtistDetailPage() {
 
           <Separator className="my-4" />
 
-          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <DialogTrigger
-              render={<Button variant="destructive" size="sm" />}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshBio()}
+              disabled={refreshing}
             >
-              <Trash2 className="size-3.5" />
-              Remove from my list
-            </DialogTrigger>
+              {refreshing ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              {refreshing ? "Refreshing…" : "Refresh bio"}
+            </Button>
 
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogTrigger
+                render={<Button variant="destructive" size="sm" />}
+              >
+                <Trash2 className="size-3.5" />
+                Remove from my list
+              </DialogTrigger>
+
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Remove artist?</DialogTitle>
+                  <DialogDescription>
+                    This will remove{" "}
+                    <strong className="text-foreground">
+                      @{artist.instagramHandle}
+                    </strong>{" "}
+                    from your list. The artist&apos;s data will be preserved for
+                    other users.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>
+                    Cancel
+                  </DialogClose>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    {deleting ? "Removing…" : "Yes, remove"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {artist.bioLastFetchedAt && (
+              <span
+                className="ml-auto text-xs text-muted-foreground"
+                title={new Date(artist.bioLastFetchedAt).toLocaleString()}
+              >
+                Bio last checked {timeAgo(artist.bioLastFetchedAt)}
+              </span>
+            )}
+          </div>
+
+          {notice && (
+            <div
+              role="status"
+              className={`mt-4 flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${NOTICE_CLASSES[notice.tone]}`}
+            >
+              {notice.tone === "success" ? (
+                <Check className="mt-0.5 size-4 shrink-0" />
+              ) : (
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              )}
+              <span>{notice.message}</span>
+            </div>
+          )}
+
+          <Dialog
+            open={confirmRefreshAt !== null}
+            onOpenChange={(open) => {
+              if (!open) setConfirmRefreshAt(null)
+            }}
+          >
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Remove artist?</DialogTitle>
+                <DialogTitle>Refresh this bio again?</DialogTitle>
                 <DialogDescription>
-                  This will remove{" "}
-                  <strong className="text-foreground">
-                    @{artist.instagramHandle}
-                  </strong>{" "}
-                  from your list. The artist&apos;s data will be preserved for
-                  other users.
+                  {confirmRefreshAt && (
+                    <>
+                      <strong className="text-foreground">
+                        @{artist.instagramHandle}
+                      </strong>
+                      &apos;s bio was checked {timeAgo(confirmRefreshAt)}.{" "}
+                    </>
+                  )}
+                  Bios rarely change that quickly, and each refresh uses one
+                  of today&apos;s Instagram lookups.
                 </DialogDescription>
               </DialogHeader>
 
@@ -436,16 +629,11 @@ export default function ArtistDetailPage() {
                   Cancel
                 </DialogClose>
                 <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={deleting}
+                  onClick={() => refreshBio(true)}
+                  className="bg-amber-500 font-medium text-black hover:bg-amber-400"
                 >
-                  {deleting ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3.5" />
-                  )}
-                  {deleting ? "Removing…" : "Yes, remove"}
+                  <RefreshCw className="size-3.5" />
+                  Refresh anyway
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -462,9 +650,16 @@ export default function ArtistDetailPage() {
         <Card>
           <CardContent>
             {artist.bio ? (
-              <p className="whitespace-pre-line leading-relaxed text-foreground/90">
-                {artist.bio}
-              </p>
+              <>
+                <p className="whitespace-pre-line leading-relaxed text-foreground/90">
+                  {artist.bio}
+                </p>
+                {OLD_BIO_TEXT[artist.fetchStatus] && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {OLD_BIO_TEXT[artist.fetchStatus]}
+                  </p>
+                )}
+              </>
             ) : (
               <p
                 className="italic text-muted-foreground"

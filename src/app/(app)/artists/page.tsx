@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Search,
   Plus,
@@ -34,12 +35,22 @@ import {
   AvatarFallback,
 } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { OnboardingGuide } from "@/components/onboarding-guide"
 import {
   formatResumeTime,
   useBioQueue,
   type BioQueueState,
 } from "@/components/bio-queue"
+import { isRecentlyFetched } from "@/lib/bio-refresh"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types
@@ -68,9 +79,30 @@ interface Artist {
   accountType: string
   fetchStatus: "pending" | "fetched" | "unavailable" | "failed"
   fetchError: string | null
+  bioLastFetchedAt: string | null
   notes: string | null
   updatedAt?: string
   locations: ArtistLocation[]
+}
+
+/** Counted when the "Refresh all bios" dialog opens. */
+interface RefreshAllPlan {
+  /** Not checked in the last 72 hours */
+  due: number
+  /** Checked in the last 72 hours: only refreshed if the user opts in */
+  recent: number
+  /** Already waiting for a bio */
+  queued: number
+}
+
+interface Notice {
+  tone: "info" | "error"
+  message: string
+}
+
+const NOTICE_CLASSES: Record<Notice["tone"], string> = {
+  info: "border border-amber-500/20 bg-amber-500/5 text-muted-foreground",
+  error: "bg-destructive/10 text-destructive",
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -275,10 +307,17 @@ function ArtistCard({ artist }: { artist: Artist }) {
           )}
 
           {/* ── Updated timestamp ── */}
-          {artist.updatedAt && (
-            <p className="mt-3 text-right text-xs text-muted-foreground/50">
-              Updated {timeAgo(artist.updatedAt)}
+          {artist.fetchStatus === "pending" && hasLocations ? (
+            <p className="mt-3 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3" />
+              {artist.bioLastFetchedAt ? "Bio refresh queued" : "Waiting for bio"}
             </p>
+          ) : (
+            artist.updatedAt && (
+              <p className="mt-3 text-right text-xs text-muted-foreground/50">
+                Updated {timeAgo(artist.updatedAt)}
+              </p>
+            )
           )}
         </CardContent>
       </Card>
@@ -295,7 +334,7 @@ function FetchStatusBadge({ artist }: { artist: Artist }) {
     return (
       <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
         <Clock className="size-3" />
-        Waiting for bio
+        {artist.bioLastFetchedAt ? "Bio refresh queued" : "Waiting for bio"}
       </Badge>
     )
   }
@@ -390,11 +429,17 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
    ═══════════════════════════════════════════════════════════════════ */
 
 export default function ArtistsPage() {
+  const router = useRouter()
   const [artists, setArtists] = useState<Artist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [search, setSearch] = useState("")
   const [locationFilter, setLocationFilter] = useState("all")
+  const [refreshOpen, setRefreshOpen] = useState(false)
+  const [refreshPlan, setRefreshPlan] = useState<RefreshAllPlan>({ due: 0, recent: 0, queued: 0 })
+  const [includeRecent, setIncludeRecent] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const { state: queue, kick, onArtistFetched } = useBioQueue()
   // Bios that arrive while the list is still loading would otherwise be overwritten by it
   const fetchedRef = useRef(new Map<string, Artist>())
@@ -446,6 +491,57 @@ export default function ArtistsPage() {
     if (hasPending) kick()
   }, [hasPending, kick])
 
+  function openRefreshAll() {
+    const now = Date.now()
+    const plan: RefreshAllPlan = { due: 0, recent: 0, queued: 0 }
+    for (const a of artists) {
+      if (a.fetchStatus === "pending") plan.queued++
+      else if (isRecentlyFetched(a.bioLastFetchedAt, now)) plan.recent++
+      else plan.due++
+    }
+    setNotice(null)
+    setIncludeRecent(false)
+    setRefreshPlan(plan)
+    setRefreshOpen(true)
+  }
+
+  async function refreshAllBios() {
+    setRefreshingAll(true)
+    try {
+      const res = await fetch("/api/artists/refresh-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includeRecent }),
+      })
+      if (res.status === 401) {
+        router.push("/login")
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNotice({ tone: "error", message: data.error || "Couldn't refresh the bios" })
+        return
+      }
+      const queued = new Set<string>(data.queuedIds)
+      if (queued.size === 0) {
+        setNotice({ tone: "info", message: "No bios needed refreshing — they were already checked or queued." })
+        return
+      }
+      for (const id of queued) fetchedRef.current.delete(id)
+      setArtists((prev) =>
+        prev.map((a) => (queued.has(a.id) ? { ...a, fetchStatus: "pending", fetchError: null } : a))
+      )
+      kick()
+    } catch {
+      setNotice({ tone: "error", message: "Network error — check your connection and try again" })
+    } finally {
+      setRefreshingAll(false)
+      setRefreshOpen(false)
+    }
+  }
+
+  const refreshCount = refreshPlan.due + (includeRecent ? refreshPlan.recent : 0)
+
   // Unique location labels across all artists, for the filter dropdown
   const locationOptions = useMemo(() => {
     const labels = new Set<string>()
@@ -492,8 +588,8 @@ export default function ArtistsPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <h1 className="shrink-0 text-2xl font-semibold tracking-tight">
           Your Artists
           {!loading && artists.length > 0 && (
             <span className="ml-2 align-baseline text-base font-normal text-muted-foreground">
@@ -503,63 +599,158 @@ export default function ArtistsPage() {
         </h1>
 
         {showControls && (
-          <div className="flex items-center gap-2">
-            <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search artists…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
-                aria-label="Search artists"
-              />
+          <div className="flex flex-col gap-2 md:flex-row md:items-center lg:min-w-0 lg:flex-1 lg:justify-end">
+            <div className="flex min-w-0 items-center gap-2 md:flex-1 lg:justify-end">
+              <div className="relative min-w-0 flex-1 lg:max-w-64">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search artists…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8"
+                  aria-label="Search artists"
+                />
+              </div>
+
+              {locationOptions.length > 0 && (
+                <Select
+                  value={locationFilter}
+                  onValueChange={(v) => setLocationFilter(v ?? "all")}
+                >
+                  <SelectTrigger
+                    size="default"
+                    className="h-9 w-36 shrink-0 sm:w-48"
+                    aria-label="Filter by location"
+                  >
+                    <MapPin className="size-4 text-muted-foreground" />
+                    <SelectValue placeholder="All locations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All locations</SelectItem>
+                    {locationOptions.map((loc) => (
+                      <SelectItem key={loc} value={loc}>
+                        {loc}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
-            {locationOptions.length > 0 && (
-              <Select
-                value={locationFilter}
-                onValueChange={(v) => setLocationFilter(v ?? "all")}
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openRefreshAll}
+                disabled={loading || refreshingAll}
+                title="Fetch every artist's Instagram bio again"
               >
-                <SelectTrigger
-                  size="default"
-                  className="h-9 w-full sm:w-48"
-                  aria-label="Filter by location"
-                >
-                  <MapPin className="size-4 text-muted-foreground" />
-                  <SelectValue placeholder="All locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All locations</SelectItem>
-                  {locationOptions.map((loc) => (
-                    <SelectItem key={loc} value={loc}>
-                      {loc}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            <Link href="/artists/add" className="shrink-0">
-              <Button variant="outline" size="sm">
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">Add Artist</span>
-                <span className="sm:hidden">Add</span>
+                <RefreshCw className="size-4" />
+                <span className="sr-only xl:not-sr-only">Refresh bios</span>
               </Button>
-            </Link>
 
-            <Link href="/artists/import" className="shrink-0">
-              <Button className="bg-amber-500 font-medium text-black hover:bg-amber-400">
-                <Upload className="size-4" />
-                <span className="hidden sm:inline">Import Artists</span>
-                <span className="sm:hidden">Import</span>
-              </Button>
-            </Link>
+              <Link href="/artists/add" className="shrink-0">
+                <Button variant="outline" size="sm">
+                  <Plus className="size-4" />
+                  <span className="hidden sm:inline">Add Artist</span>
+                  <span className="sm:hidden">Add</span>
+                </Button>
+              </Link>
+
+              <Link href="/artists/import" className="shrink-0">
+                <Button className="bg-amber-500 font-medium text-black hover:bg-amber-400">
+                  <Upload className="size-4" />
+                  <span className="hidden sm:inline">Import Artists</span>
+                  <span className="sm:hidden">Import</span>
+                </Button>
+              </Link>
+            </div>
           </div>
         )}
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className={`flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${NOTICE_CLASSES[notice.tone]}`}
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{notice.message}</span>
+        </div>
+      )}
+
       {!loading && !error && <QueueBanner queue={queue} pending={pendingCount} />}
+
+      <Dialog
+        open={refreshOpen}
+        onOpenChange={(open) => {
+          if (!open && !refreshingAll) setRefreshOpen(false)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Refresh all bios?</DialogTitle>
+            <DialogDescription>
+              Travelink reads each artist&apos;s Instagram bio again and updates the
+              locations found in it. Locations you added yourself stay as they are.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 text-sm text-muted-foreground">
+            {refreshPlan.recent > 0 && (
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={includeRecent}
+                  onChange={(e) => setIncludeRecent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+                />
+                <span>
+                  Include the {refreshPlan.recent}{" "}
+                  {refreshPlan.recent === 1 ? "bio" : "bios"} checked in the last 72 hours
+                </span>
+              </label>
+            )}
+            {refreshPlan.queued > 0 && (
+              <p>
+                {refreshPlan.due + refreshPlan.recent === 0 ? (
+                  "Every artist is"
+                ) : (
+                  <>
+                    {refreshPlan.queued}{" "}
+                    {refreshPlan.queued === 1 ? "artist is" : "artists are"}
+                  </>
+                )}{" "}
+                already waiting for a bio.
+              </p>
+            )}
+            <p>
+              Bios refresh one at a time in the background while Travelink is open,
+              after any newly added artists. Each one uses one of your daily
+              Instagram lookups; if they run out, the rest continue the next day.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={refreshAllBios}
+              disabled={refreshCount === 0 || refreshingAll}
+              className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+            >
+              {refreshingAll ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              {refreshCount > 0
+                ? `Refresh ${refreshCount} ${refreshCount === 1 ? "bio" : "bios"}`
+                : "Refresh bios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Content ──────────────────────────────────────────────── */}
       {loading ? (
