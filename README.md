@@ -35,6 +35,9 @@ each one is based and where they're guesting next.
 - Bios are read once, when an artist is added. When an artist moves or announces new guest spots, **Refresh bio** on
   their page reads it again. Hand-added locations are kept. If the bio was checked in the last 72 hours, Travelink
   asks you to confirm first, since each refresh uses one of the day's bio lookups
+- **Refresh bios** on the Artists page reads every artist's bio again, in the background. It skips bios checked in
+  the last 72 hours unless you include them. Newly added artists still go first, and if the day's lookups run out,
+  the rest continue the next day
 - Removing an artist only takes them off your list. Anyone else who added them keeps them
 
 ![The Artists page: a grid of artist cards with home base and guest spot badges](docs/screenshots/artists.png)
@@ -57,6 +60,9 @@ That's why **Hide personal** is on by default when you import. It hides private 
 accounts can't be private) and accounts an earlier lookup found to be personal. Instagram's list doesn't say which
 accounts are business, so some personal accounts still show. Data exports don't say which accounts are private
 either, so loading the list with your session cookie hides more.
+
+Accounts with a tattoo word in their handle or name (tattoo, tats, ink, tatuaje and a few other languages) are
+listed first, under **Likely tattoo artists**, with a button to select them all.
 
 ## Privacy
 

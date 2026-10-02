@@ -109,6 +109,44 @@ function isPersonalAccount(
   return kind === "private" || kind === "personal"
 }
 
+// Tattoo words in a few languages. No lookbehinds: Safari before 16.4 can't parse them.
+const TATTOO_WORDS = new RegExp(
+  [
+    "tatt", // tattoo, tattooer, tatts
+    "tatoo(?!ine)", // the common misspelling, not Tatooine
+    "(?:^|[^s])tats(?![iu])", // tats, tatsbykim (not stats, Tatsuya, Tatsiana)
+    "(?:^|[^a-z])ink", // ink, inkbyjane, jane.ink (not pink, think)
+    "(?:^|[^a-z])ttt(?![a-z])", // jane.ttt (not mattt)
+    "hand.{0,3}poke",
+    "stick.{0,5}poke", // stick and poke, stick_n_poke
+    "(?:^|[^s])tatu[aeo]", // tatuaje, tatuagem, tatuaggio, tatuaż, tatuering (not estatua)
+    "tatau",
+    "tatou", // tatouage, tatoueur
+    "tatoe[aeë]", // tatoeage, tatoeëerder (not potatoes)
+    "tatov", // tatovering, tatovør
+    "tetov", // tetování, tetovaža, tetoválás
+    "t(?:ä|ae?)towier", // tätowierer, taetowierer
+    "d[öo]vme",
+    "tebori",
+    "irezumi",
+    "тату",
+    "타투",
+    "タトゥ",
+    "刺青",
+    "纹身",
+    "紋身",
+  ].join("|"),
+  "i"
+)
+
+/** A guess from the handle and name alone, used to list likely artists first. */
+function looksLikeTattooArtist(account: FollowingAccount): boolean {
+  return (
+    TATTOO_WORDS.test(account.username) ||
+    (!!account.fullName && TATTOO_WORDS.test(account.fullName))
+  )
+}
+
 function formatSavedAt(timestamp: number): string {
   return new Date(timestamp).toLocaleString([], {
     month: "short",
@@ -466,6 +504,14 @@ export default function ImportArtistsPage() {
     })
   }, [accounts, searchQuery, hideTracked, hidePersonal, trackedHandles, knownTypes])
 
+  // Likely tattoo artists go first; each group keeps Instagram's order
+  const [likelyAccounts, otherAccounts] = useMemo(() => {
+    const likely: FollowingAccount[] = []
+    const other: FollowingAccount[] = []
+    for (const a of filteredAccounts) (looksLikeTattooArtist(a) ? likely : other).push(a)
+    return [likely, other]
+  }, [filteredAccounts])
+
   const selectableHandles = filteredAccounts
     .map((a) => a.username)
     .filter((h) => !trackedHandles.has(h.toLowerCase()))
@@ -473,6 +519,14 @@ export default function ImportArtistsPage() {
   const allVisibleSelected =
     selectableHandles.length > 0 &&
     selectableHandles.every((h) => selectedHandles.has(h))
+
+  const selectableLikelyHandles = likelyAccounts
+    .map((a) => a.username)
+    .filter((h) => !trackedHandles.has(h.toLowerCase()))
+
+  const allLikelySelected =
+    selectableLikelyHandles.length > 0 &&
+    selectableLikelyHandles.every((h) => selectedHandles.has(h))
 
   const trackedCount = accounts.filter((a) =>
     trackedHandles.has(a.username.toLowerCase())
@@ -500,13 +554,82 @@ export default function ImportArtistsPage() {
     })
   }
 
-  function toggleAllVisible() {
+  function setHandlesSelected(handles: string[], selected: boolean) {
     setSelectedHandles((prev) => {
       const next = new Set(prev)
-      if (allVisibleSelected) selectableHandles.forEach((h) => next.delete(h))
-      else selectableHandles.forEach((h) => next.add(h))
+      if (selected) handles.forEach((h) => next.add(h))
+      else handles.forEach((h) => next.delete(h))
       return next
     })
+  }
+
+  function renderAccountRow(account: FollowingAccount) {
+    const handle = account.username
+    const isTracked = trackedHandles.has(handle.toLowerCase())
+    const isSelected = selectedHandles.has(handle)
+    const kind = isTracked ? null : accountKind(account, knownTypes)
+
+    return (
+      <label
+        key={handle}
+        role="listitem"
+        className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors ${
+          isTracked
+            ? "opacity-50"
+            : isSelected
+              ? "bg-amber-500/5"
+              : "hover:bg-muted/30"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isTracked || isSelected}
+          disabled={isTracked}
+          onChange={() => toggleHandle(handle)}
+          className="h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+          aria-label={`@${handle}`}
+        />
+        <span className="min-w-0 truncate text-sm">
+          <span className="text-foreground">@{handle}</span>
+          {account.fullName && (
+            <span className="ml-2 text-muted-foreground">
+              {account.fullName}
+            </span>
+          )}
+        </span>
+        {kind === "business" && (
+          <Badge
+            variant="outline"
+            title="A bio lookup found a public Business or Creator account"
+            className="ml-auto shrink-0 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-200"
+          >
+            Business
+          </Badge>
+        )}
+        {(kind === "private" || kind === "personal") && (
+          <Badge
+            variant="outline"
+            title={
+              kind === "private"
+                ? "Private accounts can't be Business accounts, so there's no bio to read"
+                : "A bio lookup found a personal account, so there's no bio to read"
+            }
+            className="ml-auto shrink-0 text-[11px] text-muted-foreground"
+          >
+            {kind === "private" ? "Private" : "Personal"}
+          </Badge>
+        )}
+        {isTracked && (
+          <Badge
+            variant="secondary"
+            className="ml-auto shrink-0 text-[11px]"
+          >
+            <Check className="mr-1 h-3 w-3" />
+            Added
+          </Badge>
+        )}
+      </label>
+    )
   }
 
   /* ---------------------------------------------------------------- */
@@ -865,7 +988,7 @@ export default function ImportArtistsPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={toggleAllVisible}
+                onClick={() => setHandlesSelected(selectableHandles, !allVisibleSelected)}
                 disabled={selectableHandles.length === 0}
                 className="shrink-0"
               >
@@ -890,88 +1013,76 @@ export default function ImportArtistsPage() {
                   private, so most personal ones still show. Fetching it with
                   your session cookie hides more.
                 </>
-              )}
+              )}{" "}
+              Accounts with a tattoo word in their handle or name (tattoo, tats,
+              ink, tatuaje…) are listed first.
             </p>
 
             {/* Account list */}
-            <div
-              className="max-h-[420px] overflow-y-auto rounded-lg border border-border/40 divide-y divide-border/30"
-              role="list"
-              aria-label="Accounts you follow"
-            >
+            <div className="max-h-[420px] overflow-y-auto rounded-lg border border-border/40">
               {filteredAccounts.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No accounts match your filter
                 </p>
+              ) : likelyAccounts.length === 0 ? (
+                <div
+                  role="list"
+                  aria-label="Accounts you follow"
+                  className="divide-y divide-border/30"
+                >
+                  {otherAccounts.map(renderAccountRow)}
+                </div>
               ) : (
-                filteredAccounts.map((account) => {
-                  const handle = account.username
-                  const isTracked = trackedHandles.has(handle.toLowerCase())
-                  const isSelected = selectedHandles.has(handle)
-                  const kind = isTracked ? null : accountKind(account, knownTypes)
-
-                  return (
-                    <label
-                      key={handle}
-                      role="listitem"
-                      className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors ${
-                        isTracked
-                          ? "opacity-50"
-                          : isSelected
-                            ? "bg-amber-500/5"
-                            : "hover:bg-muted/30"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isTracked || isSelected}
-                        disabled={isTracked}
-                        onChange={() => toggleHandle(handle)}
-                        className="h-4 w-4 shrink-0 rounded border-border accent-amber-500"
-                        aria-label={`@${handle}`}
-                      />
-                      <span className="min-w-0 truncate text-sm">
-                        <span className="text-foreground">@{handle}</span>
-                        {account.fullName && (
-                          <span className="ml-2 text-muted-foreground">
-                            {account.fullName}
-                          </span>
-                        )}
-                      </span>
-                      {kind === "business" && (
-                        <Badge
-                          variant="outline"
-                          title="A bio lookup found a public Business or Creator account"
-                          className="ml-auto shrink-0 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-200"
-                        >
-                          Business
-                        </Badge>
-                      )}
-                      {(kind === "private" || kind === "personal") && (
-                        <Badge
-                          variant="outline"
-                          title={
-                            kind === "private"
-                              ? "Private accounts can't be Business accounts, so there's no bio to read"
-                              : "A bio lookup found a personal account, so there's no bio to read"
+                <>
+                  <section>
+                    <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border/30 bg-card px-4 py-1.5 text-xs">
+                      <h2
+                        className="font-medium text-amber-200"
+                        title="Their handle or name has a tattoo word in it"
+                      >
+                        Likely tattoo artists
+                      </h2>
+                      <span className="text-muted-foreground">· {likelyAccounts.length}</span>
+                      {selectableLikelyHandles.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="xs"
+                          onClick={() =>
+                            setHandlesSelected(selectableLikelyHandles, !allLikelySelected)
                           }
-                          className="ml-auto shrink-0 text-[11px] text-muted-foreground"
+                          className="ml-auto h-auto px-0 text-amber-500 hover:text-amber-400"
+                          aria-label={`${allLikelySelected ? "Deselect all" : "Select all"} likely tattoo artists`}
                         >
-                          {kind === "private" ? "Private" : "Personal"}
-                        </Badge>
+                          {allLikelySelected ? "Deselect all" : "Select all"}
+                        </Button>
                       )}
-                      {isTracked && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-auto shrink-0 text-[11px]"
-                        >
-                          <Check className="mr-1 h-3 w-3" />
-                          Added
-                        </Badge>
-                      )}
-                    </label>
-                  )
-                })
+                    </div>
+                    <div
+                      role="list"
+                      aria-label="Likely tattoo artists"
+                      className="divide-y divide-border/30"
+                    >
+                      {likelyAccounts.map(renderAccountRow)}
+                    </div>
+                  </section>
+
+                  {otherAccounts.length > 0 && (
+                    <section className="border-t border-border/30">
+                      <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border/30 bg-card px-4 py-1.5 text-xs">
+                        <h2 className="font-medium text-muted-foreground">Other accounts</h2>
+                        <span className="text-muted-foreground/70">· {otherAccounts.length}</span>
+                      </div>
+                      <div
+                        role="list"
+                        aria-label="Other accounts"
+                        className="divide-y divide-border/30"
+                      >
+                        {otherAccounts.map(renderAccountRow)}
+                      </div>
+                    </section>
+                  )}
+                </>
               )}
             </div>
           </CardContent>

@@ -7,8 +7,8 @@
 //      parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
 //      the browser-driven loop can stop and resume at any time.
 //
-// A bio is fetched once. It's only fetched again when a user asks for it with
-// refreshArtistBio().
+// A bio is fetched once. It's only fetched again when a user asks for it, with
+// refreshArtistBio() (one artist) or refreshAllArtistBios() (all of their artists).
 
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
@@ -24,6 +24,7 @@ import { parseBioLocations } from "@/lib/bio-parser"
 import { BudgetExceededError, reserveUsage } from "@/lib/usage"
 import { geocodeLocation } from "@/lib/geocoding"
 import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
+import { isRecentlyFetched, REFRESH_CONFIRM_WINDOW_MS } from "@/lib/bio-refresh"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,8 +33,6 @@ import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
 export const MAX_TRACK_BATCH = 2000
 /** Instagram's cap on how many accounts one user can follow. */
 export const MAX_ACCOUNT_TYPE_LOOKUP = 7500
-/** Refreshing a bio again within this window needs the user to confirm. */
-export const REFRESH_CONFIRM_WINDOW_MS = 72 * 60 * 60_000
 const MAX_FETCH_ATTEMPTS = 3
 /** A claim older than this is assumed abandoned (request timed out mid-fetch). */
 const CLAIM_TTL_MS = 3 * 60_000
@@ -324,8 +323,9 @@ export function countPendingArtists(userId: string): Promise<number> {
 }
 
 /**
- * Fetches the bio of the user's next pending artist. Artists that errored go to
- * the back of the queue (ordered by attempts).
+ * Fetches the bio of the user's next pending artist. Artists that were never
+ * fetched go first, then refreshes (oldest bio first). Artists that errored go
+ * to the back of the queue (ordered by attempts).
  *
  * @throws {RateLimitError}
  * @throws {BusinessDiscoveryConfigError}
@@ -338,7 +338,11 @@ export async function processNextPendingArtist(userId: string): Promise<{
 }> {
   const next = await prisma.artist.findFirst({
     where: { ...claimableWhere(new Date()), users: { some: { userId } } },
-    orderBy: [{ fetchAttempts: "asc" }, { createdAt: "asc" }],
+    orderBy: [
+      { fetchAttempts: "asc" },
+      { bioLastFetchedAt: { sort: "asc", nulls: "first" } },
+      { createdAt: "asc" },
+    ],
     select: { id: true },
   })
   if (!next) return { artist: null, outcome: null, usagePercent: 0 }
@@ -356,7 +360,7 @@ async function loadUserArtist(userId: string, artistId: string): Promise<Seriali
 }
 
 // ---------------------------------------------------------------------------
-// Manual refresh (artist page)
+// Manual refresh (artist pages)
 // ---------------------------------------------------------------------------
 
 /**
@@ -385,7 +389,7 @@ export async function refreshArtistBio(
 
   const now = new Date()
   const lastFetchedAt = link.artist.bioLastFetchedAt
-  if (!force && lastFetchedAt && now.getTime() - lastFetchedAt.getTime() < REFRESH_CONFIRM_WINDOW_MS) {
+  if (!force && lastFetchedAt && isRecentlyFetched(lastFetchedAt, now.getTime())) {
     throw new RecentlyRefreshedError(lastFetchedAt)
   }
 
@@ -420,6 +424,48 @@ export async function refreshArtistBio(
   const artist = await loadUserArtist(userId, artistId)
   if (!artist) throw new ArtistNotFoundError()
   return { artist, outcome, warnings }
+}
+
+/**
+ * Puts all of a user's artists back in the bio queue, which then fetches them
+ * one at a time (after any artists that were never fetched). Skips artists that
+ * are already queued and, unless `includeRecent`, ones fetched within
+ * REFRESH_CONFIRM_WINDOW_MS. Artists are shared, so the new bios show for
+ * everyone who tracks them.
+ *
+ * @returns the ids of the artists now waiting for a bio
+ * @throws {BusinessDiscoveryConfigError} bio lookup isn't set up — nothing was changed
+ */
+export async function refreshAllArtistBios(
+  userId: string,
+  { includeRecent = false }: { includeRecent?: boolean } = {}
+): Promise<{ queuedIds: string[] }> {
+  if (!isBioLookupConfigured()) {
+    throw new BusinessDiscoveryConfigError("Instagram bio lookup isn't set up, so bios can't be refreshed.")
+  }
+
+  const where: Prisma.ArtistWhereInput = {
+    users: { some: { userId } },
+    // Pending artists are already queued, and they're the only ones a request can be fetching
+    fetchStatus: { not: "pending" },
+    ...(includeRecent
+      ? {}
+      : {
+          OR: [
+            { bioLastFetchedAt: null },
+            { bioLastFetchedAt: { lt: new Date(Date.now() - REFRESH_CONFIRM_WINDOW_MS) } },
+          ],
+        }),
+  }
+  const artists = await prisma.artist.findMany({ where, select: { id: true } })
+  const queuedIds = artists.map((a) => a.id)
+  if (queuedIds.length > 0) {
+    await prisma.artist.updateMany({
+      where: { ...where, id: { in: queuedIds } },
+      data: { fetchStatus: "pending", fetchAttempts: 0, fetchError: null },
+    })
+  }
+  return { queuedIds }
 }
 
 // ---------------------------------------------------------------------------
