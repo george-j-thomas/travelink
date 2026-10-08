@@ -1,4 +1,4 @@
-# Travelink — Project Guidelines
+# TravelInk — Project Guidelines
 
 ## Overview
 
@@ -9,7 +9,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 ## Architecture
 
 ### Route Groups
-- `/` (`src/app/page.tsx`) — Public landing page: explains what Travelink does, how it works and its main features, with a mock of the map (pure markup, `aria-hidden`). Invite links point here (`/?invite=CODE`) and its "Get started" buttons forward the code to `/register`. Signed-in users without an invite are redirected to `/map`.
+- `/` (`src/app/page.tsx`) — Public landing page: explains what TravelInk does, how it works and its main features, with a mock of the map (pure markup, `aria-hidden`). Invite links point here (`/?invite=CODE`) and its "Get started" buttons forward the code to `/register`. Signed-in users without an invite are redirected to `/map`.
 - `(auth)` — Login, register. Centered layout, no navbar.
 - `(app)` — All authenticated routes. Navbar + content layout.
 
@@ -86,7 +86,8 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 ### UI
 - Dark theme with a purple accent. Use the `brand-*` color tokens (set in `src/app/globals.css`, currently Tailwind's purple) rather than raw palette classes, so the accent can be changed in one place
 - Purple is darker than amber at the same step, so accent text and icons use `brand-400` (hover `brand-300`) to stay readable on cards. Filled accent buttons: `bg-brand-600 text-white hover:bg-brand-700`
-- Brand: "TRAVEL" in muted gray + "INK" in `brand-400`
+- Brand: "TRAVEL" in muted gray + "INK" in `brand-400` (source text "Travel" + "Ink", uppercased by CSS)
+- Write the name as "TravelInk" in copy, titles and docs. The capital I marks the Travel/Ink split, so it doesn't read as "Trave-link". Slugs (package, database, URLs) stay lowercase `travelink`
 - shadcn/ui components in `src/components/ui/` — add via `npx shadcn@latest add <component>`, never create manually
 - Card styling: `border-border/50 shadow-2xl shadow-black/25`
 - Glassmorphic surfaces: `bg-background/80 backdrop-blur-xl backdrop-saturate-150`
@@ -119,7 +120,7 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 - Do not hand-edit files in `src/components/ui/` — they are managed by shadcn
 - Do not import `authOptions` from `src/app/api/auth/[...nextauth]/route.ts` — use `@/lib/auth-options`
 - Do not use Prisma enums — use string fields with conventions documented in comments
-- Do not persist the Instagram session cookie anywhere — not the database, logs, localStorage or sessionStorage. `useInstagramCookie` (`src/hooks/`) holds it in tab memory for the signed-in Travelink user only, and drops it on sign-out, session end, the sign-in pages, and tab reload/close. It's sent with each request that needs it, along with `ownerId` (the user it was connected under); routes call `assertCookieOwner` before using it and hold it only for that request
-- Instagram cookie rejections return 403 with `code: "instagram_session"`, never 401 — clients treat 401 as a Travelink logout
+- Do not persist the Instagram session cookie anywhere — not the database, logs, localStorage or sessionStorage. `useInstagramCookie` (`src/hooks/`) holds it in tab memory for the signed-in TravelInk user only, and drops it on sign-out, session end, the sign-in pages, and tab reload/close. It's sent with each request that needs it, along with `ownerId` (the user it was connected under); routes call `assertCookieOwner` before using it and hold it only for that request
+- Instagram cookie rejections return 403 with `code: "instagram_session"`, never 401 — clients treat 401 as a TravelInk logout
 - Do not add in-memory background jobs — the app is deployed on Vercel (serverless); long work must be client-driven or step-based
 - Do not wrap slow external API calls (Instagram, Claude, Mapbox) in Prisma transactions

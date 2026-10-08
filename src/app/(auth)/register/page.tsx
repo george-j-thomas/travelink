@@ -149,7 +149,7 @@ export default function RegisterPage() {
           Create your account
         </CardTitle>
         <CardDescription>
-          Travelink is invite-only. Use the invite link you were sent.
+          TravelInk is invite-only. Use the invite link you were sent.
         </CardDescription>
       </CardHeader>
 

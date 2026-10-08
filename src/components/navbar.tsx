@@ -69,7 +69,7 @@ export function Navbar() {
             Travel
           </span>
           <span className="text-sm font-medium uppercase tracking-[0.25em] text-brand-400">
-            ink
+            Ink
           </span>
         </Link>
 

@@ -28,7 +28,7 @@ export class EmailTakenError extends Error {
 }
 
 const INVITE_ERROR_MESSAGES: Record<Exclude<InviteStatus, "valid">, string> = {
-  invalid: "Travelink is invite-only. Ask a member for an invite link.",
+  invalid: "TravelInk is invite-only. Ask a member for an invite link.",
   used: "This invite link has already been used.",
   expired: "This invite link has expired. Ask for a new one.",
   revoked: "This invite link was revoked. Ask for a new one.",

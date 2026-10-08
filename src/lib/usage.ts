@@ -22,7 +22,7 @@ export class BudgetExceededError extends Error {
     super(
       scope === "user"
         ? "You've reached today's lookup limit. It resets at midnight UTC."
-        : "Travelink has reached today's lookup limit. It resets at midnight UTC.",
+        : "TravelInk has reached today's lookup limit. It resets at midnight UTC.",
     )
     this.name = "BudgetExceededError"
   }

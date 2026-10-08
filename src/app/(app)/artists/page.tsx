@@ -692,7 +692,7 @@ export default function ArtistsPage() {
           <DialogHeader>
             <DialogTitle>Refresh all bios?</DialogTitle>
             <DialogDescription>
-              Travelink reads each artist&apos;s Instagram bio again and updates the
+              TravelInk reads each artist&apos;s Instagram bio again and updates the
               locations found in it. Locations you added yourself stay as they are.
             </DialogDescription>
           </DialogHeader>
@@ -726,7 +726,7 @@ export default function ArtistsPage() {
               </p>
             )}
             <p>
-              Bios refresh one at a time in the background while Travelink is open,
+              Bios refresh one at a time in the background while TravelInk is open,
               after any newly added artists. Each one uses one of your daily
               Instagram lookups; if they run out, the rest continue the next day.
             </p>

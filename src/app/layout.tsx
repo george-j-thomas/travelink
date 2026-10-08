@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Travelink",
+  title: "TravelInk",
   description:
     "Track your favorite tattoo artists and their locations around the world",
 };
