@@ -84,13 +84,15 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 - Always use the singleton from `@/lib/db`, never instantiate `PrismaClient` directly
 
 ### UI
-- Dark theme with amber (`amber-500`) accent color
-- Brand: "TRAVEL" in muted gray + "INK" in amber-500
+- Dark theme with a purple accent. Use the `brand-*` color tokens (set in `src/app/globals.css`, currently Tailwind's purple) rather than raw palette classes, so the accent can be changed in one place
+- Purple is darker than amber at the same step, so accent text and icons use `brand-400` (hover `brand-300`) to stay readable on cards. Filled accent buttons: `bg-brand-600 text-white hover:bg-brand-700`
+- Brand: "TRAVEL" in muted gray + "INK" in `brand-400`
 - shadcn/ui components in `src/components/ui/` — add via `npx shadcn@latest add <component>`, never create manually
 - Card styling: `border-border/50 shadow-2xl shadow-black/25`
 - Glassmorphic surfaces: `bg-background/80 backdrop-blur-xl backdrop-saturate-150`
-- Primary badges: amber-tinted (`border-amber-500/30 bg-amber-500/10 text-amber-200`)
-- Guest spot badges: purple-tinted
+- Primary badges: brand-tinted (`border-brand-500/30 bg-brand-500/10 text-brand-200`)
+- Guest spots use the `guest-*` tokens (amber), e.g. badges `border-guest-500/20 bg-guest-500/10 text-guest-400`. The map layers in `artist-map.tsx` keep hex copies of both tokens
+- Warnings use raw `amber-*`, not `guest-*`
 - Icons from `lucide-react`
 
 ### Error Handling
