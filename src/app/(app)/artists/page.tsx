@@ -101,7 +101,7 @@ interface Notice {
 }
 
 const NOTICE_CLASSES: Record<Notice["tone"], string> = {
-  info: "border border-amber-500/20 bg-amber-500/5 text-muted-foreground",
+  info: "border border-brand-500/20 bg-brand-500/5 text-muted-foreground",
   error: "bg-destructive/10 text-destructive",
 }
 
@@ -185,8 +185,8 @@ function SkeletonCard() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
-        <UserRound className="size-10 text-amber-500/80" strokeWidth={1.5} />
+      <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
+        <UserRound className="size-10 text-brand-400/80" strokeWidth={1.5} />
       </div>
 
       <h2 className="text-lg font-medium text-foreground">No artists yet</h2>
@@ -197,7 +197,7 @@ function EmptyState() {
 
       <Link href="/artists/import" className="mt-6">
         <Button
-          className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+          className="bg-brand-600 font-medium text-white hover:bg-brand-700"
           size="lg"
         >
           <Upload className="size-4" />
@@ -206,7 +206,7 @@ function EmptyState() {
       </Link>
       <Link
         href="/artists/add"
-        className="mt-3 text-sm text-muted-foreground hover:text-amber-500 transition-colors"
+        className="mt-3 text-sm text-muted-foreground hover:text-brand-400 transition-colors"
       >
         or add one manually
       </Link>
@@ -236,9 +236,9 @@ function ArtistCard({ artist }: { artist: Artist }) {
     <Link
       href={`/artists/${artist.id}`}
       aria-label={`View ${name} (@${artist.instagramHandle})`}
-      className="group/card-link block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group/card-link block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
-      <Card className="h-full transition-shadow duration-200 group-hover/card-link:ring-amber-500/25">
+      <Card className="h-full transition-shadow duration-200 group-hover/card-link:ring-brand-500/25">
         <CardContent>
           {/* ── Identity ── */}
           <div className="flex items-center gap-3">
@@ -246,7 +246,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
               {artist.profilePicUrl && (
                 <AvatarImage src={artist.profilePicUrl} alt="" />
               )}
-              <AvatarFallback className="bg-amber-500/15 text-base font-semibold text-amber-500">
+              <AvatarFallback className="bg-brand-500/15 text-base font-semibold text-brand-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -277,7 +277,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
                 {primary && (
                   <Badge
                     variant="secondary"
-                    className="gap-1 border border-amber-500/20 bg-amber-500/10 text-amber-400"
+                    className="gap-1 border border-brand-500/20 bg-brand-500/10 text-brand-300"
                   >
                     <MapPin className="size-3" />
                     {locationLabel(primary)}
@@ -366,7 +366,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
   const remaining = queue.status === "idle" ? pending : queue.remaining
   if (remaining === 0 && queue.status !== "error") return null
 
-  let icon = <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber-500" />
+  let icon = <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-brand-400" />
   let text: React.ReactNode
 
   switch (queue.status) {
@@ -381,7 +381,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
       )
       break
     case "paused":
-      icon = <PauseCircle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      icon = <PauseCircle className="mt-0.5 size-4 shrink-0 text-brand-400" />
       text = (
         <>
           Bio lookups hit a rate limit. {remaining === 1 ? "1 bio" : `${remaining} bios`} will resume
@@ -391,7 +391,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
       )
       break
     case "not_configured":
-      icon = <Clock className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      icon = <Clock className="mt-0.5 size-4 shrink-0 text-brand-400" />
       text = (
         <>
           {remaining} {remaining === 1 ? "artist is" : "artists are"} saved and waiting for
@@ -405,7 +405,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
       text = queue.message
       break
     default:
-      icon = <Clock className="mt-0.5 size-4 shrink-0 text-amber-500" />
+      icon = <Clock className="mt-0.5 size-4 shrink-0 text-brand-400" />
       text = <>{remaining} {remaining === 1 ? "artist is" : "artists are"} waiting for a bio.</>
   }
 
@@ -415,7 +415,7 @@ function QueueBanner({ queue, pending }: { queue: BioQueueState; pending: number
       className={`flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${
         queue.status === "error"
           ? "bg-destructive/10 text-destructive"
-          : "border border-amber-500/20 bg-amber-500/5 text-muted-foreground"
+          : "border border-brand-500/20 bg-brand-500/5 text-muted-foreground"
       }`}
     >
       {icon}
@@ -659,7 +659,7 @@ export default function ArtistsPage() {
               </Link>
 
               <Link href="/artists/import" className="shrink-0">
-                <Button className="bg-amber-500 font-medium text-black hover:bg-amber-400">
+                <Button className="bg-brand-600 font-medium text-white hover:bg-brand-700">
                   <Upload className="size-4" />
                   <span className="hidden sm:inline">Import Artists</span>
                   <span className="sm:hidden">Import</span>
@@ -704,7 +704,7 @@ export default function ArtistsPage() {
                   type="checkbox"
                   checked={includeRecent}
                   onChange={(e) => setIncludeRecent(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-brand-600"
                 />
                 <span>
                   Include the {refreshPlan.recent}{" "}
@@ -737,7 +737,7 @@ export default function ArtistsPage() {
             <Button
               onClick={refreshAllBios}
               disabled={refreshCount === 0 || refreshingAll}
-              className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+              className="bg-brand-600 font-medium text-white hover:bg-brand-700"
             >
               {refreshingAll ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -804,7 +804,7 @@ export default function ArtistsPage() {
           <Button
             variant="link"
             size="sm"
-            className="mt-1 text-amber-500 hover:text-amber-400"
+            className="mt-1 text-brand-400 hover:text-brand-300"
             onClick={() => {
               setSearch("")
               setLocationFilter("all")

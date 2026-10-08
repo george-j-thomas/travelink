@@ -31,16 +31,16 @@ export default async function Home({
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background px-4 py-16">
-      {/* Warm ambient glow — matches auth pages */}
+      {/* Ambient glow — matches auth pages */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-amber-900/[0.07] blur-[100px]"
+        className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-brand-900/[0.07] blur-[100px]"
       />
 
       <main className="relative flex w-full max-w-md flex-col items-center text-center">
         <span className="select-none text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">
           Travel
-          <span className="text-amber-500">ink</span>
+          <span className="text-brand-400">ink</span>
         </span>
 
         <h1 className="mt-10 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -54,8 +54,8 @@ export default async function Home({
         <ol className="mt-10 grid gap-4 text-left">
           {STEPS.map(({ icon: Icon, text }) => (
             <li key={text} className="flex items-center gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/20">
-                <Icon className="size-5 text-amber-500/90" strokeWidth={1.5} />
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 ring-1 ring-brand-500/20">
+                <Icon className="size-5 text-brand-400/90" strokeWidth={1.5} />
               </span>
               <span className="text-sm text-foreground/90">{text}</span>
             </li>

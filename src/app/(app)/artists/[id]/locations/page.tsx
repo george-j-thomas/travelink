@@ -182,11 +182,15 @@ function LocationCardDisplay({
       <CardContent>
         <div className="flex items-start gap-3">
           {/* ── Icon ────────────────────────────────────────── */}
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+          <div
+            className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${
+              location.isGuestSpot ? "bg-guest-500/10" : "bg-brand-500/10"
+            }`}
+          >
             {location.isGuestSpot ? (
-              <Plane className="size-4 text-amber-500" />
+              <Plane className="size-4 text-guest-500" />
             ) : (
-              <MapPin className="size-4 text-amber-500" />
+              <MapPin className="size-4 text-brand-400" />
             )}
           </div>
 
@@ -206,7 +210,7 @@ function LocationCardDisplay({
               {location.isPrimary && (
                 <Badge
                   variant="secondary"
-                  className="border border-amber-500/20 bg-amber-500/10 text-amber-400"
+                  className="border border-brand-500/20 bg-brand-500/10 text-brand-300"
                 >
                   Primary
                 </Badge>
@@ -215,7 +219,7 @@ function LocationCardDisplay({
               {location.isGuestSpot && (
                 <Badge
                   variant="secondary"
-                  className="border border-purple-500/20 bg-purple-500/10 text-purple-400"
+                  className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
                 >
                   Guest Spot
                 </Badge>
@@ -472,7 +476,7 @@ export default function ArtistLocationsPage() {
               setShowAddForm(true)
               setEditingId(null)
             }}
-            className="shrink-0 bg-amber-500 text-black hover:bg-amber-400"
+            className="shrink-0 bg-brand-600 text-white hover:bg-brand-700"
           >
             <Plus className="size-3.5" />
             Add Location
@@ -553,7 +557,7 @@ export default function ArtistLocationsPage() {
 
                 <Button
                   onClick={() => setShowAddForm(true)}
-                  className="mt-5 bg-amber-500 text-black hover:bg-amber-400"
+                  className="mt-5 bg-brand-600 text-white hover:bg-brand-700"
                   size="sm"
                 >
                   <Plus className="size-3.5" />

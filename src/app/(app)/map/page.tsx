@@ -40,8 +40,8 @@ function MapSkeleton() {
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="size-12 animate-pulse rounded-full bg-amber-500/20" />
-            <MapPin className="absolute inset-0 m-auto size-6 animate-pulse text-amber-500/60" />
+            <div className="size-12 animate-pulse rounded-full bg-brand-500/20" />
+            <MapPin className="absolute inset-0 m-auto size-6 animate-pulse text-brand-400/60" />
           </div>
           <div className="space-y-2 text-center">
             <div className="mx-auto h-4 w-32 animate-pulse rounded bg-muted" />
@@ -95,9 +95,9 @@ function EmptyState() {
     <div className="fixed inset-x-0 top-14 bottom-0 z-10 bg-background">
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4 px-4 text-center">
-          <div className="mb-2 flex size-20 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+          <div className="mb-2 flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
             <MapPin
-              className="size-10 text-amber-500/80"
+              className="size-10 text-brand-400/80"
               strokeWidth={1.5}
             />
           </div>
@@ -111,7 +111,7 @@ function EmptyState() {
           </div>
           <Link href="/artists/add" className="mt-2">
             <Button
-              className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+              className="bg-brand-600 font-medium text-white hover:bg-brand-700"
               size="lg"
             >
               <Plus className="size-4" />
@@ -139,8 +139,8 @@ function NoArtistsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex size-12 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
-            <UserRoundPlus className="size-6 text-amber-500/90" strokeWidth={1.5} />
+          <div className="mb-1 flex size-12 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
+            <UserRoundPlus className="size-6 text-brand-400/90" strokeWidth={1.5} />
           </div>
           <DialogTitle>Add artists to fill your map</DialogTitle>
           <DialogDescription>
@@ -152,7 +152,7 @@ function NoArtistsModal({
         </DialogHeader>
         <DialogFooter showCloseButton>
           <Link href="/artists">
-            <Button className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400 sm:w-auto">
+            <Button className="w-full bg-brand-600 font-medium text-white hover:bg-brand-700 sm:w-auto">
               <UserRoundPlus className="size-4" />
               Go to Artists
             </Button>
@@ -172,8 +172,8 @@ function EmptyMapBackdrop() {
     <div className="fixed inset-x-0 top-14 bottom-0 z-10 bg-background">
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4 px-4 text-center opacity-60">
-          <div className="flex size-20 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
-            <MapPin className="size-10 text-amber-500/80" strokeWidth={1.5} />
+          <div className="flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
+            <MapPin className="size-10 text-brand-400/80" strokeWidth={1.5} />
           </div>
           <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
             Nothing on the map yet.

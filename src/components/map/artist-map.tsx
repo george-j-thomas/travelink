@@ -97,6 +97,8 @@ function getInitials(name: string): string {
 
 /* ═══════════════════════════════════════════════════════════════════════
    Layer definitions
+   Colors are hex copies of the brand/guest tokens in globals.css, since
+   Mapbox can't read CSS variables.
    ═══════════════════════════════════════════════════════════════════ */
 
 const clusterLayer = {
@@ -107,11 +109,11 @@ const clusterLayer = {
     "circle-color": [
       "step",
       ["get", "point_count"],
-      "#f59e0b", // amber-500 — small clusters
+      "#ac4bff", // brand-500 — small clusters
       10,
-      "#d97706", // amber-600 — medium
+      "#9810fa", // brand-600 — medium
       50,
-      "#b45309", // amber-700 — large
+      "#8200da", // brand-700 — large
     ],
     "circle-radius": [
       "step",
@@ -124,7 +126,7 @@ const clusterLayer = {
     ],
     "circle-opacity": 0.85,
     "circle-stroke-width": 2,
-    "circle-stroke-color": "#fbbf24",
+    "circle-stroke-color": "#c07eff", // brand-400
     "circle-stroke-opacity": 0.3,
   },
 }
@@ -151,8 +153,8 @@ const unclusteredPointLayer = {
     "circle-color": [
       "case",
       ["get", "isGuestSpot"],
-      "#c084fc", // purple-400 for guest spots
-      "#f59e0b", // amber-500 for primary / home base
+      "#f99c00", // guest-500 for guest spots
+      "#c07eff", // brand-400 for primary / home base
     ],
     "circle-radius": 8,
     "circle-stroke-width": 2,
@@ -184,11 +186,11 @@ function ArtistAvatar({ props, size }: { props: FeatureProps; size: "sm" | "md" 
   const url = props.profilePicUrl as string
   const dim = size === "md" ? "size-10" : "size-8"
   return (
-    <div className={`relative ${dim} shrink-0 overflow-hidden rounded-full bg-amber-500/15`}>
+    <div className={`relative ${dim} shrink-0 overflow-hidden rounded-full bg-brand-500/15`}>
       {url ? (
         <img src={url} alt="" className={`${dim} rounded-full object-cover`} />
       ) : (
-        <span className={`flex ${dim} items-center justify-center text-xs font-semibold text-amber-500`}>
+        <span className={`flex ${dim} items-center justify-center text-xs font-semibold text-brand-400`}>
           {getInitials(displayNameOf(props))}
         </span>
       )}
@@ -202,7 +204,7 @@ function InstagramHandleLink({ handle }: { handle: string }) {
       href={instagramUrl(handle)}
       target="_blank"
       rel="noopener noreferrer"
-      className="block truncate text-xs text-muted-foreground transition-colors hover:text-amber-400 hover:underline"
+      className="block truncate text-xs text-muted-foreground transition-colors hover:text-brand-300 hover:underline"
       title={`Open @${handle} on Instagram`}
     >
       @{handle}
@@ -215,9 +217,9 @@ function LocationLine({ props }: { props: FeatureProps }) {
   return (
     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
       {isGuestSpot ? (
-        <Plane className="size-3 shrink-0 text-purple-400" />
+        <Plane className="size-3 shrink-0 text-guest-500" />
       ) : (
-        <MapPin className="size-3 shrink-0 text-amber-500" />
+        <MapPin className="size-3 shrink-0 text-brand-400" />
       )}
       <span className="truncate">{locationTextOf(props)}</span>
     </div>
@@ -266,7 +268,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
         {isPrimary && (
           <Badge
             variant="secondary"
-            className="border border-amber-500/20 bg-amber-500/10 text-amber-400"
+            className="border border-brand-500/20 bg-brand-500/10 text-brand-300"
           >
             Primary
           </Badge>
@@ -274,7 +276,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
         {isGuestSpot && (
           <Badge
             variant="secondary"
-            className="border border-purple-500/20 bg-purple-500/10 text-purple-400"
+            className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
           >
             Guest Spot
           </Badge>
@@ -285,7 +287,7 @@ function SingleArtistCard({ props, onClose }: { props: FeatureProps; onClose: ()
       {artistId && (
         <Link
           href={`/artists/${artistId}`}
-          className="mt-3 block text-xs font-medium text-amber-500 transition-colors hover:text-amber-400"
+          className="mt-3 block text-xs font-medium text-brand-400 transition-colors hover:text-brand-300"
         >
           View profile →
         </Link>
@@ -324,7 +326,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
                   {artistId ? (
                     <Link
                       href={`/artists/${artistId}`}
-                      className="truncate text-sm font-medium leading-snug transition-colors hover:text-amber-400"
+                      className="truncate text-sm font-medium leading-snug transition-colors hover:text-brand-300"
                     >
                       {displayNameOf(props)}
                     </Link>
@@ -335,7 +337,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
                   )}
                   {isGuestSpot && (
                     <Plane
-                      className="size-3 shrink-0 text-purple-400"
+                      className="size-3 shrink-0 text-guest-500"
                       aria-label="Guest spot"
                     />
                   )}
@@ -345,7 +347,7 @@ function ArtistListCard({ items, onClose }: { items: FeatureProps[]; onClose: ()
               {artistId && (
                 <Link
                   href={`/artists/${artistId}`}
-                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-amber-400"
+                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-brand-300"
                   aria-label={`View ${displayNameOf(props)}'s profile`}
                 >
                   <ChevronRight className="size-4" />

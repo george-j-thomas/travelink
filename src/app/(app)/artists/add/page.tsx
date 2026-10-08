@@ -460,7 +460,7 @@ export default function AddArtistPage() {
                       variant="secondary"
                       className={
                         loc.isPrimary
-                          ? "border border-amber-500/30 bg-amber-500/10 text-amber-200"
+                          ? "border border-brand-500/30 bg-brand-500/10 text-brand-200"
                           : ""
                       }
                     >
@@ -530,7 +530,7 @@ export default function AddArtistPage() {
                             <Check className="h-3 w-3 text-emerald-400" />
                           </span>
                         ) : active ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+                          <Loader2 className="h-5 w-5 animate-spin text-brand-400" />
                         ) : (
                           <Circle className="h-2.5 w-2.5 fill-muted-foreground/20 text-muted-foreground/30" />
                         )}
@@ -653,7 +653,7 @@ export default function AddArtistPage() {
                             onClick={() => selectUser(user)}
                             onMouseEnter={() => setActive(i)}
                             className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
-                              i === active ? "bg-amber-500/10" : "hover:bg-muted/50"
+                              i === active ? "bg-brand-500/10" : "hover:bg-muted/50"
                             }`}
                           >
                             <Avatar className="size-9">
@@ -721,7 +721,7 @@ export default function AddArtistPage() {
             {!cookie && (
               <div className="grid gap-2.5 rounded-lg border border-border/50 bg-muted/20 p-3.5">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <Search className="h-3.5 w-3.5 text-amber-400" />
+                  <Search className="h-3.5 w-3.5 text-brand-300" />
                   Search Instagram as you type
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
