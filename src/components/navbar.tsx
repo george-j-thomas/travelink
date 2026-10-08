@@ -66,9 +66,9 @@ export function Navbar() {
           className="mr-2 flex items-baseline gap-0 select-none"
         >
           <span className="text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground">
-            Travel
+            travel-
           </span>
-          <span className="text-sm font-medium uppercase tracking-[0.25em] text-amber-500">
+          <span className="text-sm font-medium uppercase tracking-[0.25em] text-brand-400">
             ink
           </span>
         </Link>
@@ -93,11 +93,11 @@ export function Navbar() {
               >
                 {label}
 
-                {/* Active indicator — warm amber bar */}
+                {/* Active indicator — brand-colored bar */}
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-x-1 -bottom-[calc(0.5rem+1px)] h-0.5 rounded-full bg-amber-500"
+                    className="absolute inset-x-1 -bottom-[calc(0.5rem+1px)] h-0.5 rounded-full bg-brand-400"
                   />
                 )}
               </Link>
@@ -120,7 +120,7 @@ export function Navbar() {
                   alt={user.name ?? "User avatar"}
                 />
               )}
-              <AvatarFallback className="bg-amber-500/15 text-amber-500 text-xs font-semibold">
+              <AvatarFallback className="bg-brand-500/15 text-brand-400 text-xs font-semibold">
                 {getUserInitials(user?.name, user?.email)}
               </AvatarFallback>
             </Avatar>

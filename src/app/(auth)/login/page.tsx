@@ -36,7 +36,7 @@ export default function LoginPage() {
       .catch(() => {});
 
     if (new URLSearchParams(window.location.search).get("error") === "InviteRequired") {
-      setError("That Instagram account isn't linked to Travelink. Travelink is invite-only.");
+      setError("That Instagram account isn't linked to travel-ink. travel-ink is invite-only.");
     }
   }, []);
 

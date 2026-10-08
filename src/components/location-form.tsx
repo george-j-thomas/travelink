@@ -78,7 +78,7 @@ function TogglePill({
   checked,
   onChange,
   label,
-  accentClass = "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  accentClass = "border-brand-500/30 bg-brand-500/10 text-brand-300",
 }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -357,7 +357,7 @@ export function LocationForm({
                 className={cn(
                   "flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm transition-colors",
                   idx === highlightIdx
-                    ? "bg-amber-500/10 text-foreground"
+                    ? "bg-brand-500/10 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -365,7 +365,7 @@ export function LocationForm({
                   className={cn(
                     "size-3.5 shrink-0",
                     idx === highlightIdx
-                      ? "text-amber-500"
+                      ? "text-brand-400"
                       : "text-muted-foreground/40",
                   )}
                 />
@@ -452,13 +452,13 @@ export function LocationForm({
           checked={isPrimary}
           onChange={setIsPrimary}
           label="Primary location"
-          accentClass="border-amber-500/30 bg-amber-500/10 text-amber-400"
+          accentClass="border-brand-500/30 bg-brand-500/10 text-brand-300"
         />
         <TogglePill
           checked={isGuestSpot}
           onChange={setIsGuestSpot}
           label="Guest spot"
-          accentClass="border-purple-500/30 bg-purple-500/10 text-purple-400"
+          accentClass="border-guest-500/30 bg-guest-500/10 text-guest-400"
         />
       </div>
 
@@ -496,7 +496,7 @@ export function LocationForm({
         <Button
           type="submit"
           disabled={saving}
-          className="bg-amber-500 text-black hover:bg-amber-400"
+          className="bg-brand-600 text-white hover:bg-brand-700"
         >
           {saving && <Loader2 className="size-3.5 animate-spin" />}
           {saving ? "Saving…" : isEditing ? "Update location" : "Save location"}

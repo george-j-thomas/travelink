@@ -81,7 +81,7 @@ function InviteStatusBadge({ invite }: { invite: Invite }) {
   switch (invite.status) {
     case "valid":
       return (
-        <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
+        <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-200">
           Open · expires {formatDate(invite.expiresAt)}
         </Badge>
       )
@@ -227,7 +227,7 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-24">
-        <Loader2 className="size-6 animate-spin text-amber-500" />
+        <Loader2 className="size-6 animate-spin text-brand-400" />
       </div>
     )
   }
@@ -236,7 +236,7 @@ export default function AdminPage() {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-24 text-center">
         <ShieldAlert className="size-8 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">This page is for Travelink admins only.</p>
+        <p className="text-sm text-muted-foreground">This page is for travel-ink admins only.</p>
       </div>
     )
   }
@@ -256,7 +256,7 @@ export default function AdminPage() {
       <Card className="border-border/50 shadow-2xl shadow-black/25">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Gauge className="size-4 text-amber-500" />
+            <Gauge className="size-4 text-brand-400" />
             Today&apos;s usage
           </CardTitle>
           <CardDescription>Daily caps reset at midnight UTC.</CardDescription>
@@ -272,7 +272,7 @@ export default function AdminPage() {
                 </span>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className={`h-full rounded-full ${pct >= 90 ? "bg-destructive" : "bg-amber-500"}`}
+                    className={`h-full rounded-full ${pct >= 90 ? "bg-destructive" : "bg-brand-400"}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -287,11 +287,11 @@ export default function AdminPage() {
       <Card className="border-border/50 shadow-2xl shadow-black/25">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Ticket className="size-4 text-amber-500" />
+            <Ticket className="size-4 text-brand-400" />
             Invites
           </CardTitle>
           <CardDescription>
-            Each link works once. Send it yourself — Travelink doesn&apos;t email anyone.
+            Each link works once. Send it yourself — travel-ink doesn&apos;t email anyone.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -330,7 +330,7 @@ export default function AdminPage() {
             <Button
               type="submit"
               disabled={creating}
-              className="bg-amber-500 text-black hover:bg-amber-400"
+              className="bg-brand-600 text-white hover:bg-brand-700"
             >
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               Create invite
@@ -338,7 +338,7 @@ export default function AdminPage() {
           </form>
 
           {newInvite && (
-            <div className="grid gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <div className="grid gap-2 rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
               <p className="text-sm">
                 Invite created{newInvite.note ? ` for ${newInvite.note}` : ""}. Send this link:
               </p>
@@ -390,7 +390,7 @@ export default function AdminPage() {
       <Card className="border-border/50 shadow-2xl shadow-black/25">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="size-4 text-amber-500" />
+            <Users className="size-4 text-brand-400" />
             Users
           </CardTitle>
           <CardDescription>
@@ -405,7 +405,7 @@ export default function AdminPage() {
                   <span className="flex items-center gap-2 truncate text-sm">
                     {user.email ?? user.name ?? user.id}
                     {user.isAdmin && (
-                      <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
+                      <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-200">
                         Admin
                       </Badge>
                     )}

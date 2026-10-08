@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ accounts, count: accounts.length })
   } catch (err) {
-    // 403, not 401: the Instagram cookie was rejected, not the Travelink session
+    // 403, not 401: the Instagram cookie was rejected, not the travel-ink session
     if (err instanceof ScraperAuthError) {
       return NextResponse.json({ error: err.message, code: "instagram_session" }, { status: 403 })
     }

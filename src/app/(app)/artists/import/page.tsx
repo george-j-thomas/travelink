@@ -91,7 +91,7 @@ function writeDraft(userId: string, draft: ImportDraft | null) {
 
 /**
  * Business/Creator accounts can't be private, so "private" and "personal"
- * accounts have no bio Travelink can read. null: not known yet.
+ * accounts have no bio travel-ink can read. null: not known yet.
  */
 function accountKind(
   account: FollowingAccount,
@@ -200,7 +200,7 @@ function InstructionStep({
 }) {
   return (
     <li className="flex gap-2.5">
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-[11px] font-semibold text-amber-400">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-[11px] font-semibold text-brand-300">
         {number}
       </span>
       <span className="pt-px leading-5">{children}</span>
@@ -577,7 +577,7 @@ export default function ImportArtistsPage() {
           isTracked
             ? "opacity-50"
             : isSelected
-              ? "bg-amber-500/5"
+              ? "bg-brand-500/5"
               : "hover:bg-muted/30"
         }`}
       >
@@ -586,7 +586,7 @@ export default function ImportArtistsPage() {
           checked={isTracked || isSelected}
           disabled={isTracked}
           onChange={() => toggleHandle(handle)}
-          className="h-4 w-4 shrink-0 rounded border-border accent-amber-500"
+          className="h-4 w-4 shrink-0 rounded border-border accent-brand-600"
           aria-label={`@${handle}`}
         />
         <span className="min-w-0 truncate text-sm">
@@ -601,7 +601,7 @@ export default function ImportArtistsPage() {
           <Badge
             variant="outline"
             title="A bio lookup found a public Business or Creator account"
-            className="ml-auto shrink-0 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-200"
+            className="ml-auto shrink-0 border-brand-500/30 bg-brand-500/10 text-[11px] text-brand-200"
           >
             Business
           </Badge>
@@ -719,8 +719,8 @@ export default function ImportArtistsPage() {
             {/* Card A — Upload Data Export */}
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
-                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Upload className="h-5 w-5 text-amber-400" />
+                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
+                  <Upload className="h-5 w-5 text-brand-300" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Upload Data Export
@@ -761,8 +761,8 @@ export default function ImportArtistsPage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
                     isDragOver
-                      ? "border-amber-500/60 bg-amber-500/5"
-                      : "border-border/60 hover:border-amber-500/40 hover:bg-amber-500/5"
+                      ? "border-brand-500/60 bg-brand-500/5"
+                      : "border-border/60 hover:border-brand-500/40 hover:bg-brand-500/5"
                   }`}
                   role="button"
                   tabIndex={0}
@@ -774,7 +774,7 @@ export default function ImportArtistsPage() {
                   }}
                 >
                   {isUploading ? (
-                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+                    <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
                   ) : (
                     <Download className="h-6 w-6 text-muted-foreground/60" />
                   )}
@@ -797,8 +797,8 @@ export default function ImportArtistsPage() {
             {/* Card B — Paste Session Cookie */}
             <Card className="border-border/50 shadow-2xl shadow-black/25">
               <CardHeader className="pb-3">
-                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Cookie className="h-5 w-5 text-amber-400" />
+                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
+                  <Cookie className="h-5 w-5 text-brand-300" />
                 </div>
                 <CardTitle className="text-base font-semibold">
                   Paste Session Cookie
@@ -867,7 +867,7 @@ export default function ImportArtistsPage() {
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400"
+                    className="w-full bg-brand-600 font-medium text-white hover:bg-brand-700"
                     disabled={isFetching || !cookie}
                   >
                     {isFetching ? (
@@ -970,7 +970,7 @@ export default function ImportArtistsPage() {
                     type="checkbox"
                     checked={hideTracked}
                     onChange={(e) => setHideTracked(e.target.checked)}
-                    className="h-4 w-4 rounded border-border accent-amber-500"
+                    className="h-4 w-4 rounded border-border accent-brand-600"
                   />
                   Hide added
                 </label>
@@ -979,7 +979,7 @@ export default function ImportArtistsPage() {
                     type="checkbox"
                     checked={hidePersonal}
                     onChange={(e) => setHidePersonal(e.target.checked)}
-                    className="h-4 w-4 rounded border-border accent-amber-500"
+                    className="h-4 w-4 rounded border-border accent-brand-600"
                   />
                   Hide personal
                 </label>
@@ -997,7 +997,7 @@ export default function ImportArtistsPage() {
             </div>
 
             <p className="-mt-1 text-xs text-muted-foreground">
-              Travelink can only read the bios of public Business and Creator
+              travel-ink can only read the bios of public Business and Creator
               accounts.{" "}
               {knowsPrivateStatus ? (
                 <>
@@ -1037,7 +1037,7 @@ export default function ImportArtistsPage() {
                   <section>
                     <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border/30 bg-card px-4 py-1.5 text-xs">
                       <h2
-                        className="font-medium text-amber-200"
+                        className="font-medium text-brand-200"
                         title="Their handle or name has a tattoo word in it"
                       >
                         Likely tattoo artists
@@ -1051,7 +1051,7 @@ export default function ImportArtistsPage() {
                           onClick={() =>
                             setHandlesSelected(selectableLikelyHandles, !allLikelySelected)
                           }
-                          className="ml-auto h-auto px-0 text-amber-500 hover:text-amber-400"
+                          className="ml-auto h-auto px-0 text-brand-400 hover:text-brand-300"
                           aria-label={`${allLikelySelected ? "Deselect all" : "Select all"} likely tattoo artists`}
                         >
                           {allLikelySelected ? "Deselect all" : "Select all"}
@@ -1097,7 +1097,7 @@ export default function ImportArtistsPage() {
             <Button
               onClick={saveSelected}
               disabled={selectedHandles.size === 0 || isSaving}
-              className="w-full bg-amber-500 font-medium text-black hover:bg-amber-400 sm:w-auto"
+              className="w-full bg-brand-600 font-medium text-white hover:bg-brand-700 sm:w-auto"
             >
               {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

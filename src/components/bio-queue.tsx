@@ -246,13 +246,13 @@ function BioQueuePill({ state }: { state: BioQueueState }) {
     >
       {state.status === "paused" ? (
         <>
-          <PauseCircle className="size-3.5 text-amber-500" />
+          <PauseCircle className="size-3.5 text-brand-400" />
           Lookup limit reached · {state.remaining === 1 ? "1 bio resumes" : `${state.remaining} bios resume`} at{" "}
           {formatResumeTime(state.pausedUntil!)}
         </>
       ) : (
         <>
-          <Loader2 className="size-3.5 animate-spin text-amber-500" />
+          <Loader2 className="size-3.5 animate-spin text-brand-400" />
           Fetching bios · {state.remaining} left
         </>
       )}

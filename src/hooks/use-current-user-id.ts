@@ -11,7 +11,7 @@ import { useSession } from "next-auth/react"
 export const DevUserIdContext = createContext<string | null>(null)
 
 /**
- * The Travelink user the server acts as: the signed-in user, or the dev user
+ * The travel-ink user the server acts as: the signed-in user, or the dev user
  * under the dev auth bypass. Null while loading or when signed out.
  */
 export function useCurrentUserId(): string | null {

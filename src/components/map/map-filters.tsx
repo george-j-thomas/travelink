@@ -48,7 +48,7 @@ export function MapFilters({
               className={cn(
                 "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-amber-500 text-black shadow-sm"
+                  ? "bg-brand-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               aria-pressed={isActive}

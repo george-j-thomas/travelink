@@ -97,7 +97,7 @@ const OLD_BIO_TEXT: Partial<Record<Artist["fetchStatus"], string>> = {
 
 const NOTICE_CLASSES: Record<Notice["tone"], string> = {
   success: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-  info: "border border-amber-500/20 bg-amber-500/5 text-muted-foreground",
+  info: "border border-brand-500/20 bg-brand-500/5 text-muted-foreground",
   error: "bg-destructive/10 text-destructive",
 }
 
@@ -264,11 +264,15 @@ function LocationCard({ location }: { location: ArtistLocation }) {
     <Card size="sm">
       <CardContent>
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+          <div
+            className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${
+              location.isGuestSpot ? "bg-guest-500/10" : "bg-brand-500/10"
+            }`}
+          >
             {location.isGuestSpot ? (
-              <Plane className="size-4 text-amber-500" />
+              <Plane className="size-4 text-guest-500" />
             ) : (
-              <MapPin className="size-4 text-amber-500" />
+              <MapPin className="size-4 text-brand-400" />
             )}
           </div>
 
@@ -287,7 +291,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isPrimary && (
                 <Badge
                   variant="secondary"
-                  className="border border-amber-500/20 bg-amber-500/10 text-amber-400"
+                  className="border border-brand-500/20 bg-brand-500/10 text-brand-300"
                 >
                   Primary
                 </Badge>
@@ -296,7 +300,7 @@ function LocationCard({ location }: { location: ArtistLocation }) {
               {location.isGuestSpot && (
                 <Badge
                   variant="secondary"
-                  className="border border-purple-500/20 bg-purple-500/10 text-purple-400"
+                  className="border border-guest-500/20 bg-guest-500/10 text-guest-400"
                 >
                   Guest Spot
                 </Badge>
@@ -487,11 +491,11 @@ export default function ArtistDetailPage() {
       <Card>
         <CardContent>
           <div className="flex items-start gap-5">
-            <Avatar className="size-20 ring-2 ring-amber-500/20">
+            <Avatar className="size-20 ring-2 ring-brand-500/20">
               {artist.profilePicUrl && (
                 <AvatarImage src={artist.profilePicUrl} alt="" />
               )}
-              <AvatarFallback className="bg-amber-500/15 text-xl font-semibold text-amber-500">
+              <AvatarFallback className="bg-brand-500/15 text-xl font-semibold text-brand-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -505,7 +509,7 @@ export default function ArtistDetailPage() {
                 href={`https://instagram.com/${artist.instagramHandle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group/ig inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-amber-500"
+                className="group/ig inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-brand-400"
               >
                 @{artist.instagramHandle}
                 <ExternalLink className="size-3 opacity-0 transition-opacity group-hover/ig:opacity-100" />
@@ -630,7 +634,7 @@ export default function ArtistDetailPage() {
                 </DialogClose>
                 <Button
                   onClick={() => refreshBio(true)}
-                  className="bg-amber-500 font-medium text-black hover:bg-amber-400"
+                  className="bg-brand-600 font-medium text-white hover:bg-brand-700"
                 >
                   <RefreshCw className="size-3.5" />
                   Refresh anyway
@@ -686,7 +690,7 @@ export default function ArtistDetailPage() {
 
           <Link
             href={`/artists/${artist.id}/locations`}
-            className="text-sm text-amber-500 transition-colors hover:text-amber-400"
+            className="text-sm text-brand-400 transition-colors hover:text-brand-300"
           >
             Edit locations
           </Link>
@@ -711,7 +715,7 @@ export default function ArtistDetailPage() {
                 </p>
                 <Link
                   href={`/artists/${artist.id}/locations`}
-                  className="mt-2 text-sm text-amber-500 transition-colors hover:text-amber-400"
+                  className="mt-2 text-sm text-brand-400 transition-colors hover:text-brand-300"
                 >
                   Add locations manually →
                 </Link>
