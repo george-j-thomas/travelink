@@ -74,8 +74,8 @@ doesn't need the cookie at all.
 ## Invites and limits
 
 Travelink is invite-only. An admin creates a single-use invite link on the **Admin** page (avatar menu → Admin) and
-sends it. The link opens a short intro page, and **Get started** goes to sign-up (email and password) with the
-invite already filled in.
+sends it. The link opens an intro page that explains the app, and **Get started** goes to sign-up (email and
+password) with the invite already filled in.
 
 To cap costs, bio lookups have daily limits, overall and per user, that reset at midnight UTC. When a limit is hit,
 the queue waits for the reset. Admins can see today's usage, manage invites and disable users on the Admin page.
