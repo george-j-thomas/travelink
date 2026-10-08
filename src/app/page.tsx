@@ -3,23 +3,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   CalendarDays,
-  ChevronRight,
   Globe,
   MapPin,
   PencilLine,
-  Plane,
   RefreshCw,
   ScanText,
   Search,
   ShieldCheck,
   Ticket,
-  X,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InstagramIcon } from "@/components/icons/instagram";
+import { LandingMapPreview } from "@/components/landing-map-preview";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 type Tone = "brand" | "guest";
@@ -105,7 +103,7 @@ export default async function Home({
 
       <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
-          <Wordmark />
+          <Wordmark href="#top" />
           <nav className="flex items-center gap-2">
             <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Sign in
@@ -120,19 +118,27 @@ export default async function Home({
       <main className="relative flex-1">
         <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:py-24">
           <div>
-            <p className={EYEBROW}>Tattoo artist tracker</p>
-            <h1 className="mt-4 text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
+            <p className={cn(EYEBROW, "motion-safe:animate-rise")}>Tattoo artist tracker</p>
+            <h1
+              className="mt-4 text-balance text-4xl font-semibold tracking-tight motion-safe:animate-rise sm:text-5xl"
+              style={{ animationDelay: "80ms" }}
+            >
               Your tattoo artists, on one map
             </h1>
-            <p className="mt-5 max-w-xl text-pretty text-muted-foreground sm:text-lg">
+            <p
+              className="mt-5 max-w-xl text-pretty text-muted-foreground motion-safe:animate-rise sm:text-lg"
+              style={{ animationDelay: "160ms" }}
+            >
               Artists move between studios, guest spots and conventions, and many list where
               they&apos;ll be in their Instagram bio. Travelink reads those bios for the artists
               you follow and puts everyone on one map.
             </p>
-            <CallToAction registerHref={registerHref} className="mt-8" />
-            <InviteNote hasInvite={hasInvite} className="mt-4" />
+            <div className="motion-safe:animate-rise" style={{ animationDelay: "240ms" }}>
+              <CallToAction registerHref={registerHref} className="mt-8" />
+              <InviteNote hasInvite={hasInvite} className="mt-4" />
+            </div>
           </div>
-          <MapPreview />
+          <LandingMapPreview />
         </section>
 
         <section className="border-t border-border/50">
@@ -202,12 +208,22 @@ export default async function Home({
   );
 }
 
-function Wordmark() {
-  return (
-    <span className="select-none text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground">
+const WORDMARK = "select-none text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground";
+
+/* As a link, hovering lights up "Travel", like the app navbar's wordmark */
+function Wordmark({ href }: { href?: string }) {
+  const text = (
+    <>
       Travel
       <span className="text-brand-400">ink</span>
-    </span>
+    </>
+  );
+  return href ? (
+    <a href={href} className={cn(WORDMARK, "transition-colors hover:text-foreground")}>
+      {text}
+    </a>
+  ) : (
+    <span className={WORDMARK}>{text}</span>
   );
 }
 
@@ -261,125 +277,5 @@ function InviteNote({ hasInvite, className }: { hasInvite: boolean; className?: 
         ? "Your invite is filled in on the next step."
         : "Travelink is invite-only. You'll need an invite link to sign up."}
     </p>
-  );
-}
-
-/* Mock of the map page: filter bar, pins, clusters and a city popup. Positions are
-   percentages, kept clear of the filter bar and the popup at both aspect ratios. */
-
-const PREVIEW_FILTERS = [
-  { label: "All", icon: Globe },
-  { label: "Home bases", icon: MapPin },
-  { label: "Guest spots", icon: Plane },
-];
-
-const PREVIEW_PINS: { x: number; y: number; guest?: boolean }[] = [
-  { x: 10, y: 20 },
-  { x: 22, y: 19, guest: true },
-  { x: 52, y: 19 },
-  { x: 66, y: 30 },
-  { x: 90, y: 62, guest: true },
-  { x: 78, y: 74 },
-  { x: 14, y: 90 },
-  { x: 64, y: 88, guest: true },
-  { x: 88, y: 86 },
-];
-
-const PREVIEW_ARTISTS: { name: string; initials: string; handle: string; guest?: boolean }[] = [
-  { name: "Mara Volk", initials: "MV", handle: "mara.volk.ink" },
-  { name: "Juno Reyes", initials: "JR", handle: "junoreyes.tattoo", guest: true },
-  { name: "Sasha K.", initials: "SK", handle: "sasha.k.flash" },
-];
-
-function MapPreview() {
-  return (
-    <div
-      aria-hidden="true"
-      className="relative aspect-[3/4] select-none overflow-hidden rounded-xl bg-card shadow-2xl shadow-black/25 ring-1 ring-foreground/10 sm:aspect-[4/3]"
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [background-size:18px_18px]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,var(--card))]" />
-
-      <div className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-border/50 bg-background/80 p-1 shadow-lg shadow-black/20 backdrop-blur-xl backdrop-saturate-150">
-        {PREVIEW_FILTERS.map(({ label, icon: Icon }, i) => (
-          <span
-            key={label}
-            className={cn(
-              "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3 sm:text-sm",
-              i === 0 ? "bg-brand-600 text-white shadow-sm" : "text-muted-foreground",
-            )}
-          >
-            <Icon className="size-3.5" />
-            {label}
-          </span>
-        ))}
-      </div>
-
-      {PREVIEW_PINS.map(({ x, y, guest }) => (
-        <span
-          key={`${x}-${y}`}
-          className={cn(
-            "absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white/20",
-            guest ? "bg-guest-500" : "bg-brand-400",
-          )}
-          style={{ left: `${x}%`, top: `${y}%` }}
-        />
-      ))}
-
-      <Cluster count={14} x={82} y={40} className="size-11 bg-brand-600" />
-      <Cluster count={3} x={40} y={85} className="size-9 bg-brand-500" />
-
-      {/* Sits just above the 3-artist cluster (top: 85%, 36px tall) */}
-      <div className="absolute bottom-[calc(15%+26px)] left-[40%] w-60 -translate-x-1/2 overflow-hidden rounded-xl bg-background/95 shadow-2xl ring-1 ring-border/50 backdrop-blur-xl">
-        <div className="flex items-start gap-3 border-b border-border/50 px-3.5 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-snug">Berlin, Germany</p>
-            <p className="text-xs text-muted-foreground">{PREVIEW_ARTISTS.length} artists</p>
-          </div>
-          <X className="size-4 text-muted-foreground" />
-        </div>
-        <ul className="py-1">
-          {PREVIEW_ARTISTS.map(({ name, initials, handle, guest }) => (
-            <li key={handle} className="flex items-center gap-3 px-3.5 py-2">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-semibold text-brand-400">
-                {initials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium leading-snug">{name}</span>
-                  {guest && <Plane className="size-3 shrink-0 text-guest-500" />}
-                </div>
-                <span className="block truncate text-xs text-muted-foreground">@{handle}</span>
-              </div>
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function Cluster({
-  count,
-  x,
-  y,
-  className,
-}: {
-  count: number;
-  x: number;
-  y: number;
-  className: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-xs font-semibold text-white ring-4 ring-brand-400/30",
-        className,
-      )}
-      style={{ left: `${x}%`, top: `${y}%` }}
-    >
-      {count}
-    </span>
   );
 }

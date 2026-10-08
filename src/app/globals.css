@@ -78,6 +78,57 @@
   --color-guest-950: var(--color-amber-950);
 }
 
+/* Landing page motion. Use with motion-safe: so reduced-motion users get a
+   still page, and stagger with an inline animation-delay. */
+@theme {
+  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  --animate-halo: halo 4.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  --animate-route-draw: route-draw 1.2s cubic-bezier(0.6, 0, 0.2, 1) backwards;
+  --animate-route-flow: route-flow 0.9s linear infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0);
+    }
+  }
+
+  /* A ping from a map pin. The element sits on the pin with opacity 0 */
+  @keyframes halo {
+    0% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    40%,
+    100% {
+      opacity: 0;
+      transform: scale(3.5);
+    }
+  }
+
+  /* Draws a stroke that has pathLength="1" and stroke-dasharray="1 1" */
+  @keyframes route-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+
+  /* One period of a "3 5" stroke-dasharray, so the dashes flow toward the path's end */
+  @keyframes route-flow {
+    to {
+      stroke-dashoffset: -8;
+    }
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
