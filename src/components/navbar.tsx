@@ -66,10 +66,10 @@ export function Navbar() {
           className="mr-2 flex items-baseline gap-0 select-none"
         >
           <span className="text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground">
-            Travel
+            travel-
           </span>
           <span className="text-sm font-medium uppercase tracking-[0.25em] text-brand-400">
-            Ink
+            ink
           </span>
         </Link>
 

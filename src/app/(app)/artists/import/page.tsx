@@ -91,7 +91,7 @@ function writeDraft(userId: string, draft: ImportDraft | null) {
 
 /**
  * Business/Creator accounts can't be private, so "private" and "personal"
- * accounts have no bio TravelInk can read. null: not known yet.
+ * accounts have no bio travel-ink can read. null: not known yet.
  */
 function accountKind(
   account: FollowingAccount,
@@ -997,7 +997,7 @@ export default function ImportArtistsPage() {
             </div>
 
             <p className="-mt-1 text-xs text-muted-foreground">
-              TravelInk can only read the bios of public Business and Creator
+              travel-ink can only read the bios of public Business and Creator
               accounts.{" "}
               {knowsPrivateStatus ? (
                 <>

@@ -7,7 +7,7 @@ import { useCurrentUserId } from "@/hooks/use-current-user-id"
 
 // The Instagram cookie is a full login to the user's Instagram account, so it
 // is only held in this tab's memory (never localStorage or sessionStorage),
-// for the TravelInk user who pasted it. Reloading or closing the tab drops it,
+// for the travel-ink user who pasted it. Reloading or closing the tab drops it,
 // and so do signing out, the session ending and the sign-in pages. It is sent
 // with each request that needs it and never stored server-side.
 
@@ -38,7 +38,7 @@ export function forgetInstagramCookie() {
 }
 
 /**
- * Drops the cookie when the TravelInk session ends (including sign-out in
+ * Drops the cookie when the travel-ink session ends (including sign-out in
  * another tab) or another user signs in. Mount once, in the root providers.
  */
 export function useInstagramCookieGuard() {

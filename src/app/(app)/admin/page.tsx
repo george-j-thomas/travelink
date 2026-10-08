@@ -236,7 +236,7 @@ export default function AdminPage() {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-24 text-center">
         <ShieldAlert className="size-8 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">This page is for TravelInk admins only.</p>
+        <p className="text-sm text-muted-foreground">This page is for travel-ink admins only.</p>
       </div>
     )
   }
@@ -291,7 +291,7 @@ export default function AdminPage() {
             Invites
           </CardTitle>
           <CardDescription>
-            Each link works once. Send it yourself — TravelInk doesn&apos;t email anyone.
+            Each link works once. Send it yourself — travel-ink doesn&apos;t email anyone.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

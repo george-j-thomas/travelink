@@ -30,7 +30,7 @@ const STEPS: { icon: IconComponent; title: string; text: string }[] = [
   },
   {
     icon: ScanText,
-    title: "TravelInk reads their bios",
+    title: "travel-ink reads their bios",
     text: "In the background, it picks out each artist's home base, guest spots and guest spot dates. Keep browsing while it works.",
   },
   {
@@ -130,7 +130,7 @@ export default async function Home({
               style={{ animationDelay: "160ms" }}
             >
               Artists move between studios, guest spots and conventions, and many list where
-              they&apos;ll be in their Instagram bio. TravelInk reads those bios for the artists
+              they&apos;ll be in their Instagram bio. travel-ink reads those bios for the artists
               you follow and puts everyone on one map.
             </p>
             <div className="motion-safe:animate-rise" style={{ animationDelay: "240ms" }}>
@@ -201,7 +201,7 @@ export default async function Home({
       <footer className="border-t border-border/50">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-6 sm:px-6">
           <Wordmark />
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} TravelInk</p>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} travel-ink</p>
         </div>
       </footer>
     </div>
@@ -210,12 +210,12 @@ export default async function Home({
 
 const WORDMARK = "select-none text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground";
 
-/* As a link, hovering lights up "Travel", like the app navbar's wordmark */
+/* As a link, hovering lights up "travel-", like the app navbar's wordmark */
 function Wordmark({ href }: { href?: string }) {
   const text = (
     <>
-      Travel
-      <span className="text-brand-400">Ink</span>
+      travel-
+      <span className="text-brand-400">ink</span>
     </>
   );
   return href ? (
@@ -275,7 +275,7 @@ function InviteNote({ hasInvite, className }: { hasInvite: boolean; className?: 
       <Ticket className="size-3.5 shrink-0 text-brand-400/90" />
       {hasInvite
         ? "Your invite is filled in on the next step."
-        : "TravelInk is invite-only. You'll need an invite link to sign up."}
+        : "travel-ink is invite-only. You'll need an invite link to sign up."}
     </p>
   );
 }

@@ -13,8 +13,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         {/* Brand mark */}
         <div className="mb-10 text-center">
           <span className="select-none text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">
-            Travel
-            <span className="text-brand-400">Ink</span>
+            travel-
+            <span className="text-brand-400">ink</span>
           </span>
         </div>
 

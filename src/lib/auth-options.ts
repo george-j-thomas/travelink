@@ -61,7 +61,7 @@ export const authOptions: AuthOptions = {
 
   callbacks: {
     // Registration is invite-only: Instagram sign-in only works for an
-    // Instagram account already linked to a TravelInk user
+    // Instagram account already linked to a travel-ink user
     async signIn({ account }) {
       if (account?.provider === "instagram") {
         const linked = await prisma.account.findUnique({

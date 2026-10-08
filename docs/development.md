@@ -1,6 +1,6 @@
 # Development
 
-How to run TravelInk locally, connect the services it uses, and deploy it. For what the app does, see the
+How to run travel-ink locally, connect the services it uses, and deploy it. For what the app does, see the
 [README](../README.md).
 
 ## Running locally
