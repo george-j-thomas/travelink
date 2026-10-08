@@ -123,15 +123,16 @@ export default async function Home({
               className="mt-4 text-balance text-4xl font-semibold tracking-tight motion-safe:animate-rise sm:text-5xl"
               style={{ animationDelay: "80ms" }}
             >
-              Your tattoo artists, on one map
+              Your tattoo artists, mapped.
             </h1>
             <p
               className="mt-5 max-w-xl text-pretty text-muted-foreground motion-safe:animate-rise sm:text-lg"
               style={{ animationDelay: "160ms" }}
             >
               Artists move between studios, guest spots and conventions, and many list where
-              they&apos;ll be in their Instagram bio. travel-ink reads those bios for the artists
-              you follow and puts everyone on one map.
+              they&apos;ll be in their Instagram bio.{" "}
+              <span className="text-brand-400">travel-ink</span> reads those bios for the
+              artists you follow and puts everyone on one map.
             </p>
             <div className="motion-safe:animate-rise" style={{ animationDelay: "240ms" }}>
               <CallToAction registerHref={registerHref} className="mt-8" />
