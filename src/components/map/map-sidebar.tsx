@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type * as GeoJSON from "geojson"
 import { ChevronLeft, ChevronRight, MapPin, Plane, Users } from "lucide-react"
 
@@ -32,6 +33,67 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase()
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Avatar
+   ═══════════════════════════════════════════════════════════════════ */
+
+type PhotoStatus = "loading" | "loaded" | "failed"
+
+// Initials sit under the photo, so they show while it loads and stay when the
+// link is missing or dead (Instagram links expire). The photo is invisible
+// until it has loaded, so a broken-image icon never paints. Load state is kept
+// per URL, since rows get reused for other artists as the list re-sorts.
+function SidebarAvatar({
+  url,
+  name,
+  isGuestSpot,
+}: {
+  url?: string | null
+  name: string
+  isGuestSpot: boolean
+}) {
+  const src = url || ""
+  const [photo, setPhoto] = useState<{ url: string; status: PhotoStatus } | null>(null)
+  const status: PhotoStatus = photo?.url === src ? photo.status : "loading"
+  const settle = (next: PhotoStatus) =>
+    setPhoto((prev) =>
+      prev?.url === src && prev.status === next ? prev : { url: src, status: next },
+    )
+
+  return (
+    <div aria-hidden="true" className="relative size-9 shrink-0 select-none">
+      <div className="relative flex size-full items-center justify-center overflow-hidden rounded-full bg-brand-500/15 text-xs font-semibold text-brand-400">
+        {getInitials(name)}
+        {src && status !== "failed" && (
+          <img
+            key={src}
+            ref={(img) => {
+              // Cached photos are ready at mount; show them on the first paint
+              if (img?.complete && img.naturalWidth > 0) settle("loaded")
+            }}
+            src={src}
+            alt=""
+            onLoad={() => settle("loaded")}
+            onError={() => settle("failed")}
+            className={cn(
+              "absolute inset-0 size-full rounded-full object-cover transition-opacity duration-200 motion-reduce:transition-none",
+              status === "loaded" ? "opacity-100" : "opacity-0",
+            )}
+          />
+        )}
+      </div>
+
+      {/* Type indicator dot, outside the clipped circle so it's never cut off */}
+      <span
+        className={cn(
+          "absolute right-0 bottom-0 size-3 rounded-full ring-2 ring-background",
+          isGuestSpot ? "bg-guest-500" : "bg-brand-400",
+        )}
+      />
+    </div>
+  )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -110,27 +172,11 @@ export function MapSidebar({
                       onClick={() => onSelectFeature(feature)}
                       className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-brand-500/5"
                     >
-                      {/* Avatar */}
-                      <div className="relative size-9 shrink-0 overflow-hidden rounded-full bg-brand-500/15">
-                        {profilePicUrl ? (
-                          <img
-                            src={profilePicUrl}
-                            alt=""
-                            className="size-9 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex size-9 items-center justify-center text-xs font-semibold text-brand-400">
-                            {getInitials(name)}
-                          </span>
-                        )}
-                        {/* Type indicator dot */}
-                        <span
-                          className={cn(
-                            "absolute -right-0.5 -bottom-0.5 size-3 rounded-full ring-2 ring-background",
-                            isGuestSpot ? "bg-guest-500" : "bg-brand-400",
-                          )}
-                        />
-                      </div>
+                      <SidebarAvatar
+                        url={profilePicUrl}
+                        name={name}
+                        isGuestSpot={isGuestSpot}
+                      />
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">

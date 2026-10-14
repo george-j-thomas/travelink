@@ -182,17 +182,43 @@ interface SelectedGroup {
    Popup pieces
    ═══════════════════════════════════════════════════════════════════ */
 
+type PhotoStatus = "loading" | "loaded" | "failed"
+
+// Initials sit under the photo, so they show while it loads and stay when the
+// link is missing or dead (Instagram links expire). The photo is invisible
+// until it has loaded, so a broken-image icon never paints. Load state is kept
+// per URL, so a popup reused for another artist shows that artist's photo.
 function ArtistAvatar({ props, size }: { props: FeatureProps; size: "sm" | "md" }) {
-  const url = props.profilePicUrl as string
+  const url = (props.profilePicUrl as string | null | undefined) || ""
+  const [photo, setPhoto] = useState<{ url: string; status: PhotoStatus } | null>(null)
+  const status: PhotoStatus = photo?.url === url ? photo.status : "loading"
+  const settle = (next: PhotoStatus) =>
+    setPhoto((prev) =>
+      prev?.url === url && prev.status === next ? prev : { url, status: next },
+    )
   const dim = size === "md" ? "size-10" : "size-8"
+
   return (
-    <div className={`relative ${dim} shrink-0 overflow-hidden rounded-full bg-brand-500/15`}>
-      {url ? (
-        <img src={url} alt="" className={`${dim} rounded-full object-cover`} />
-      ) : (
-        <span className={`flex ${dim} items-center justify-center text-xs font-semibold text-brand-400`}>
-          {getInitials(displayNameOf(props))}
-        </span>
+    <div
+      aria-hidden="true"
+      className={`relative flex ${dim} shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-brand-500/15 text-xs font-semibold text-brand-400`}
+    >
+      {getInitials(displayNameOf(props))}
+      {url && status !== "failed" && (
+        <img
+          key={url}
+          ref={(img) => {
+            // Cached photos are ready at mount; show them on the first paint
+            if (img?.complete && img.naturalWidth > 0) settle("loaded")
+          }}
+          src={url}
+          alt=""
+          onLoad={() => settle("loaded")}
+          onError={() => settle("failed")}
+          className={`absolute inset-0 size-full rounded-full object-cover transition-opacity duration-200 motion-reduce:transition-none ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
       )}
     </div>
   )
