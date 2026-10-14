@@ -4,8 +4,9 @@
 //   1. trackArtists() saves stub Artist rows + UserArtist links immediately — no
 //      external calls, so a selection is never lost to a rate limit.
 //   2. fetchArtistBio() fills a stub in later: Business Discovery → Claude bio
-//      parse → Mapbox geocode. Queue state (fetchStatus) lives on the Artist, so
-//      the browser-driven loop can stop and resume at any time.
+//      parse → Mapbox geocode, then a stored copy of the profile photo. Queue
+//      state (fetchStatus) lives on the Artist, so the browser-driven loop can
+//      stop and resume at any time.
 //
 // A bio is fetched once. It's only fetched again when a user asks for it, with
 // refreshArtistBio() (one artist) or refreshAllArtistBios() (all of their artists).
@@ -23,7 +24,7 @@ import {
 import { parseBioLocations } from "@/lib/bio-parser"
 import { BudgetExceededError, reserveUsage } from "@/lib/usage"
 import { geocodeLocation } from "@/lib/geocoding"
-import { serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
+import { ARTIST_DTO_INCLUDE, serializeArtist, type SerializedArtist } from "@/lib/artist-dto"
 import { isRecentlyFetched, REFRESH_CONFIRM_WINDOW_MS } from "@/lib/bio-refresh"
 
 // ---------------------------------------------------------------------------
@@ -286,6 +287,10 @@ async function runClaimedFetch(artistId: string, userId: string): Promise<Claime
       }),
     ])
 
+    if (profile.profilePictureUrl) {
+      await storeAvatarBestEffort(artistId, artist.instagramHandle, profile.profilePictureUrl)
+    }
+
     return { outcome: "fetched", usagePercent, warnings }
   } catch (err) {
     if (
@@ -312,6 +317,23 @@ async function runClaimedFetch(artistId: string, userId: string): Promise<Claime
     })
     console.error(`Bio fetch for @${artist.instagramHandle} failed (attempt ${attempts}):`, err)
     return { outcome: failed ? "failed" : "retry", usagePercent, warnings: [message] }
+  }
+}
+
+/**
+ * Stores our own copy of the profile photo, whose Instagram link expires in a
+ * few days. The bio is already saved by then, so this never throws: the catch in
+ * runClaimedFetch would turn a fetched bio into a retry.
+ */
+async function storeAvatarBestEffort(artistId: string, handle: string, pictureUrl: string): Promise<void> {
+  try {
+    // Loaded on first use, so routes that never fetch a bio don't load sharp
+    const { storeArtistAvatar } = await import("@/lib/avatars")
+    await storeArtistAvatar(artistId, pictureUrl)
+  } catch (err) {
+    // Prisma validation errors echo the query's arguments, so strip the signed photo URL
+    const message = (err instanceof Error ? err.message : String(err)).replaceAll(pictureUrl, "<photo URL>")
+    console.error(`Storing the profile photo for @${handle} failed:`, message)
   }
 }
 
@@ -354,7 +376,7 @@ export async function processNextPendingArtist(userId: string): Promise<{
 async function loadUserArtist(userId: string, artistId: string): Promise<SerializedArtist | null> {
   const link = await prisma.userArtist.findUnique({
     where: { userId_artistId: { userId, artistId } },
-    include: { artist: { include: { locations: true } } },
+    include: { artist: { include: ARTIST_DTO_INCLUDE } },
   })
   return link ? serializeArtist(link.artist, link.notes) : null
 }

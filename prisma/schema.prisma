@@ -84,6 +84,9 @@ model Artist {
 
   users            UserArtist[]
   locations        ArtistLocation[]
+  // Never `include: { avatar: true }` (that loads the image bytes). Select only
+  // `version` (ARTIST_DTO_INCLUDE in src/lib/artist-dto.ts); only the avatar route reads `data`
+  avatar           ArtistAvatar?
 
   @@index([fetchStatus])
   @@map("artists")
@@ -119,6 +122,27 @@ model ArtistLocation {
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@map("artist_locations")
+}
+
+// Our own small copy of a business/creator account's profile photo, saved when
+// its bio is fetched, because Instagram's signed photo links expire after ~4.5
+// days. Served by GET /api/artists/[id]/avatar.
+model ArtistAvatar {
+  id          String   @id @default(cuid())
+  artistId    String   @unique @map("artist_id")
+  // Resized WebP image
+  data        Bytes
+  contentType String   @map("content_type")
+  // The Instagram CDN link it was made from (signed; expires)
+  sourceUrl   String   @map("source_url")
+  // Hash of the encoder settings + source image. Cache-busts the avatar URL (?v=) and is its ETag
+  version     String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@map("artist_avatars")
 }
 
 

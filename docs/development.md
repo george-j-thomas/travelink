@@ -7,7 +7,7 @@ How to run travel-ink locally, connect the services it uses, and deploy it. For 
 
 ### Prerequisites
 
-- Node.js 20+ (24 recommended to match Vercel; run `nvm use` to pick up `.nvmrc`)
+- Node.js 20.9+ (sharp needs it; 24 recommended to match Vercel; run `nvm use` to pick up `.nvmrc`)
 - Docker (for PostgreSQL)
 
 ### 1. Install dependencies

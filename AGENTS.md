@@ -15,7 +15,9 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 
 ### Key Layers
 - `src/lib/` — Service modules. Each is self-contained with its own types, error classes, and a single public API:
-  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`, `bioLastFetchedAt`). The queue fetches never-fetched artists first, then refreshes (oldest bio first), then ones that errored. Bios are fetched once; `refreshArtistBio` (manual only) re-queues and claims an artist in one update, then fetches it, throwing `RecentlyRefreshedError` within `REFRESH_CONFIRM_WINDOW_MS` (72h) unless forced. `refreshAllArtistBios` puts a user's artists back in the queue (no claim, no external calls), skipping pending ones and, unless `includeRecent`, ones fetched within the window. A refresh that comes back unavailable keeps the old bio and locations. `getKnownAccountTypes` reports which handles earlier lookups found to be business/personal (DB only)
+  - `artist-pipeline.ts` — Orchestrator. `trackArtists` saves selected handles immediately as `fetchStatus: "pending"` stubs (no external calls); `fetchArtistBio` claims one artist (DB claim with TTL), then Business Discovery → Claude bio parse → Mapbox geocode → DB write (records `fetchSource`, `bioLastFetchedAt`) → stores a copy of the profile photo (`avatars.ts`, after the transaction; failures are only logged). The queue fetches never-fetched artists first, then refreshes (oldest bio first), then ones that errored. Bios are fetched once; `refreshArtistBio` (manual only) re-queues and claims an artist in one update, then fetches it, throwing `RecentlyRefreshedError` within `REFRESH_CONFIRM_WINDOW_MS` (72h) unless forced. `refreshAllArtistBios` puts a user's artists back in the queue (no claim, no external calls), skipping pending ones and, unless `includeRecent`, ones fetched within the window. A refresh that comes back unavailable keeps the old bio, locations and stored photo. `getKnownAccountTypes` reports which handles earlier lookups found to be business/personal (DB only)
+  - `avatars.ts` — Stored profile photos. `storeArtistAvatar` downloads the Business Discovery profile picture (Instagram CDN hosts only, no redirects, 5s timeout, 2 MB cap), re-encodes it with sharp to a 240×240 WebP and upserts it into `artist_avatars`. `version` hashes the encoder settings with the source bytes, so an unchanged photo isn't re-encoded and a settings change gives every photo a new URL. Server-only (sharp, imported lazily by the pipeline); throws `AvatarError`; sharp may only load JPEG, PNG and WebP. The CDN download isn't metered (it's not a Graph API call). File tracing misses sharp's native binary, so every route that runs bio fetches must be listed in `outputFileTracingIncludes` in `next.config.ts`
+  - `artist-dto.ts` — `serializeArtist`, the artist shape the API returns. Queries feeding it (or the map) include `ARTIST_DTO_INCLUDE`: locations plus the stored photo's `version`, never its bytes. `profilePicUrlFor` gives `/api/artists/[id]/avatar?v=<version>` when a photo is stored, else the Instagram link
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
   - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent. Following-list entries carry `isPrivate` — Instagram doesn't say which are business accounts, but Business/Creator accounts can't be private
   - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
@@ -34,6 +36,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `NextRequest`/`NextResponse` from `next/server`
   - Error shape: `{ error: string }` with appropriate HTTP status
   - Next.js 15 params: `params: Promise<{ id: string }>`
+  - Exception: `GET /api/artists/[id]/avatar` returns image bytes, only to users tracking the artist (404 otherwise). It sends an ETag (304 on `If-None-Match`), `Cache-Control: private, max-age=31536000, immutable` when `?v=` is the current version and `private, max-age=60` otherwise. Never `public`: a shared cache would skip the auth check. It never downloads from Instagram
 
 - `src/components/` — React components. `ui/` is shadcn-managed (do not hand-edit). Custom components sit alongside.
   - `bio-queue.tsx` — `BioQueueProvider` (in the `(app)` layout) drains pending bios by calling `POST /api/artists/fetch-next` in a loop, waiting the returned `nextDelayMs`; rate-limit pauses persist in localStorage. All queue state lives in the DB, so navigation never loses work
@@ -44,10 +47,12 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 3. `POST /api/artists/bulk` saves the selection as pending artists right away
 4. The bio queue fetches bios in the background of any app page
 
-Bios aren't re-fetched automatically. The artist page's "Refresh bio" calls `POST /api/artists/[id]/refresh`; a 409 `recently_refreshed` means the bio was checked within 72h, and the client confirms before retrying with `{ force: true }`. If Instagram is throttling (or a budget is used up) the artist stays pending (202 `queued`) for the bio queue. The artists list's "Refresh bios" calls `POST /api/artists/refresh-all` (`{ includeRecent?: boolean }`, returns `{ queuedIds }`) and then kicks the bio queue
+Bios aren't re-fetched automatically. The artist page's "Refresh bio" calls `POST /api/artists/[id]/refresh`; a 409 `recently_refreshed` means the bio was checked within 72h, and the client confirms before retrying with `{ force: true }`. If Instagram is throttling (or a budget is used up) the artist stays pending (202 `queued`) for the bio queue. The artists list's "Refresh bios" calls `POST /api/artists/refresh-all` (`{ includeRecent?: boolean }`, returns `{ queuedIds }`) and then kicks the bio queue. Every successful fetch also stores the photo again, so refreshing is how a changed photo is picked up (bios from the last 72h only when the user ticks "Include … checked in the last 72 hours")
 
 ### Data Flow
 Artists are **shared** across users. `UserArtist` is the join table — deleting an artist from a user's list only removes the link, not the artist record.
+
+Business/creator profile photos are stored in `artist_avatars` (one row per artist, deleted with it) when a bio fetch succeeds, and change only with a later fetch. Personal and unavailable accounts never get one; they keep the Instagram link from import, which expires about 4.5 days later.
 
 ## Build and Test
 
@@ -59,6 +64,8 @@ npx tsc --noEmit     # Type check
 npx prisma generate  # Regenerate Prisma client after schema changes
 npx prisma migrate dev --name <name>  # Create + apply migration
 ```
+
+Use Node 24 (`nvm use` reads `.nvmrc`). sharp, which stores avatars, needs Node 20.9 or later.
 
 ## Conventions
 
@@ -82,6 +89,7 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 - All models use `@@map("snake_case_table")` and `@map("snake_case_column")`
 - String enums over Prisma enums (easier to extend without migrations)
 - Always use the singleton from `@/lib/db`, never instantiate `PrismaClient` directly
+- Never `include: { avatar: true }` or select `avatar.data` on artist queries: that loads the photo bytes. Use `ARTIST_DTO_INCLUDE` (only the avatar's `version`); only the avatar route reads `data`
 
 ### UI
 - Dark theme with a purple accent. Use the `brand-*` color tokens (set in `src/app/globals.css`, currently Tailwind's purple) rather than raw palette classes, so the accent can be changed in one place

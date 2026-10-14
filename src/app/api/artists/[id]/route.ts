@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { serializeArtist } from "@/lib/artist-dto"
+import { ARTIST_DTO_INCLUDE, serializeArtist } from "@/lib/artist-dto"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -27,7 +27,7 @@ export async function GET(
       },
       include: {
         artist: {
-          include: { locations: true },
+          include: ARTIST_DTO_INCLUDE,
         },
       },
     })
