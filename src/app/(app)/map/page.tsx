@@ -253,7 +253,7 @@ export default function MapPage() {
     if (sidebarCoversMap) setSidebarOpen(false)
     map.flyTo({
       center: [coords[0], coords[1]],
-      zoom: Math.max(map.getZoom(), 14),
+      zoom: Math.max(map.getZoom(), 12),
       offset: [sidebarCoversMap ? 0 : SIDEBAR_WIDTH / 2, 0],
       duration: 1500,
     })
