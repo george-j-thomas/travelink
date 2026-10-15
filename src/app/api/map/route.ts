@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { ARTIST_DTO_INCLUDE, profilePicUrlFor } from "@/lib/artist-dto"
 
 type LocationType = "all" | "primary" | "guest_spot"
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       where: { userId: session.user.id },
       include: {
         artist: {
-          include: { locations: true },
+          include: ARTIST_DTO_INCLUDE,
         },
       },
     })
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
           artistId: artist.id,
           handle: artist.instagramHandle,
           displayName: artist.displayName,
-          profilePicUrl: artist.profilePicUrl,
+          profilePicUrl: profilePicUrlFor(artist),
           locationId: location.id,
           locationName: location.locationName,
           city: location.city,

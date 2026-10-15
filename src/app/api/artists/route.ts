@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { addArtistByHandle, InvalidHandleError } from "@/lib/artist-pipeline"
-import { serializeArtist } from "@/lib/artist-dto"
+import { ARTIST_DTO_INCLUDE, serializeArtist } from "@/lib/artist-dto"
 
 // POST /api/artists — Add one artist by Instagram handle. The artist is saved
 // even if its bio can't be fetched yet (it stays pending for the bio queue).
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         artist: {
-          include: { locations: true },
+          include: ARTIST_DTO_INCLUDE,
         },
       },
       orderBy: { artist: { displayName: "asc" } },

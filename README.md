@@ -38,6 +38,8 @@ each one is based and where they're guesting next.
 - **Refresh bios** on the Artists page reads every artist's bio again, in the background. It skips bios checked in
   the last 72 hours unless you include them. Newly added artists still go first, and if the day's lookups run out,
   the rest continue the next day
+- Profile photos of business and creator accounts are saved when their bio is read, so they keep showing after
+  Instagram's links expire. Refreshing the bio picks up a new photo
 - Removing an artist only takes them off your list. Anyone else who added them keeps them
 
 ![The Artists page: a grid of artist cards with home base and guest spot badges](docs/screenshots/artists.png)
