@@ -433,54 +433,74 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
       return () => cancelAnimationFrame(frame)
     }, [selected])
 
-    /* ── Query visible (unclustered) features ── */
+    /* ── Query visible features, including the artists inside clusters ── */
     // Rendered features carry tile geometry, rounded at the current zoom (up to
-    // ~500 m at world view), so hand on each location's exact point instead
-    const geometryById = useMemo(() => {
-      const byId: Record<string, GeoJSON.Geometry | undefined> = {}
+    // ~500 m at world view), so hand on each location's original feature instead
+    const featureById = useMemo(() => {
+      const byId: Record<string, GeoJSON.Feature | undefined> = {}
       for (const f of data.features) {
         const id = f.properties?.locationId as string | undefined
-        if (id) byId[id] = f.geometry
+        if (id) byId[id] = f
       }
       return byId
     }, [data])
+
+    // Cluster lookups are async, so a late answer mustn't replace a newer one
+    const visibleRequest = useRef(0)
 
     const updateVisibleFeatures = useCallback(() => {
       const map = localRef.current?.getMap()
       if (!map || !map.isStyleLoaded()) return
 
+      let rendered: GeoJSON.Feature[]
       try {
         if (!map.getLayer("unclustered-point")) return
+        // Without a geometry this queries the whole viewport
+        rendered = map.queryRenderedFeatures({
+          layers: ["clusters", "unclustered-point"],
+        })
+      } catch {
+        // Map may not be fully ready yet — ignore
+        return
+      }
 
-        const canvas = map.getCanvas()
-        const rendered = map.queryRenderedFeatures(
-          [
-            [0, 0],
-            [canvas.width, canvas.height],
-          ],
-          { layers: ["unclustered-point"] },
-        )
+      const request = ++visibleRequest.current
+      const source = map.getSource("artists") as GeoJSONSource | undefined
+
+      // A cluster bubble only carries a count, so ask the source which artists
+      // it holds
+      const seenClusters = new Set<number>()
+      const groups = rendered.map((f): Promise<GeoJSON.Feature[]> => {
+        const clusterId = f.properties?.cluster_id as number | undefined
+        if (clusterId == null) return Promise.resolve([f])
+        if (!source || seenClusters.has(clusterId)) return Promise.resolve([])
+        seenClusters.add(clusterId)
+        return new Promise((resolve) => {
+          source.getClusterLeaves(
+            clusterId,
+            f.properties?.point_count as number,
+            0,
+            (err, leaves) => resolve(err || !leaves ? [] : leaves),
+          )
+        })
+      })
+
+      Promise.all(groups).then((results) => {
+        if (request !== visibleRequest.current) return
 
         // Deduplicate by locationId
         const seen = new Set<string>()
         const unique: GeoJSON.Feature[] = []
-        for (const f of rendered) {
-          const id = f.properties?.locationId as string
-          if (id && !seen.has(id)) {
-            seen.add(id)
-            unique.push({
-              type: "Feature",
-              geometry: geometryById[id] ?? f.geometry,
-              properties: f.properties,
-            })
-          }
+        for (const f of results.flat()) {
+          const id = f.properties?.locationId as string | undefined
+          if (!id || seen.has(id)) continue
+          seen.add(id)
+          unique.push(featureById[id] ?? f)
         }
 
         onVisibleFeaturesChange(unique)
-      } catch {
-        // Map may not be fully ready yet — ignore
-      }
-    }, [onVisibleFeaturesChange, geometryById])
+      })
+    }, [onVisibleFeaturesChange, featureById])
 
     /* ── Click handler ── */
     const handleClick = useCallback((event: MapMouseEvent) => {
