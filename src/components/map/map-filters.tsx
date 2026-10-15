@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 interface MapFiltersProps {
   activeFilter: "all" | "primary" | "guest_spot"
   onFilterChange: (filter: "all" | "primary" | "guest_spot") => void
+  sidebarOpen: boolean
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -30,9 +31,17 @@ const filters = [
 export function MapFilters({
   activeFilter,
   onFilterChange,
+  sidebarOpen,
 }: MapFiltersProps) {
   return (
-    <div className="absolute top-4 left-1/2 z-20 -translate-x-1/2">
+    <div
+      className={cn(
+        "absolute top-4 left-1/2 z-20 w-max -translate-x-1/2 transition-[left] duration-300 ease-out",
+        // Centre over the map the open sidebar (w-80) leaves visible. On phones
+        // it covers nearly all of the map, so there's no room to move to
+        sidebarOpen && "sm:left-[calc(50%+10rem)]",
+      )}
+    >
       <nav
         className="flex items-center gap-1 rounded-xl border border-border/50 bg-background/80 p-1 shadow-lg shadow-black/20 backdrop-blur-xl backdrop-saturate-150"
         aria-label="Map filters"

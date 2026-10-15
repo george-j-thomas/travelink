@@ -22,7 +22,8 @@ each one is based and where they're guesting next.
 - Home bases are purple and guest spots are amber. Show **All**, only **Home bases**, or only **Guest spots**
 - Click a pin or a city's cluster to see who's there, with a plane next to guest spots. Each artist links to their
   page and their Instagram
-- A side panel lists the artists in view. Click one to fly to them
+- A side panel, open from the start, lists the artists in view. Click one to fly to them, or their handle to open
+  their Instagram
 
 ![Zoomed in on Europe, with a popup listing six artists in Berlin](docs/screenshots/map-city-popup.png)
 
