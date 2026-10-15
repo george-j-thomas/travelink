@@ -13,7 +13,7 @@ import type { MapRef } from "react-map-gl/mapbox"
 
 import { ArtistMap } from "@/components/map/artist-map"
 import { MapFilters } from "@/components/map/map-filters"
-import { MapSidebar } from "@/components/map/map-sidebar"
+import { MapSidebar, SIDEBAR_WIDTH } from "@/components/map/map-sidebar"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -194,7 +194,7 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [activeFilter, setActiveFilter] = useState<FilterType>("all")
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [visibleFeatures, setVisibleFeatures] = useState<GeoJSON.Feature[]>([])
   const [artistCount, setArtistCount] = useState<number | null>(null)
   const [modalDismissed, setModalDismissed] = useState(false)
@@ -244,10 +244,17 @@ export default function MapPage() {
   }, [])
 
   const handleSelectFeature = useCallback((feature: GeoJSON.Feature) => {
+    const map = mapRef.current
+    if (!map) return
     const coords = (feature.geometry as GeoJSON.Point).coordinates
-    mapRef.current?.flyTo({
+    // The open sidebar covers the map's left edge, so centre the artist in the
+    // rest of the map. Where it would cover most of the map, close it instead
+    const sidebarCoversMap = map.getContainer().clientWidth < SIDEBAR_WIDTH * 2
+    if (sidebarCoversMap) setSidebarOpen(false)
+    map.flyTo({
       center: [coords[0], coords[1]],
-      zoom: 14,
+      zoom: Math.max(map.getZoom(), 14),
+      offset: [sidebarCoversMap ? 0 : SIDEBAR_WIDTH / 2, 0],
       duration: 1500,
     })
   }, [])
@@ -295,6 +302,7 @@ export default function MapPage() {
       <MapFilters
         activeFilter={activeFilter}
         onFilterChange={handleFilterChange}
+        sidebarOpen={sidebarOpen}
       />
 
       <MapSidebar

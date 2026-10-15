@@ -6,6 +6,9 @@ import { ChevronLeft, ChevronRight, MapPin, Plane, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// Width of the panel (its w-80) in px. While open it covers the map's left edge
+export const SIDEBAR_WIDTH = 320
+
 /* ═══════════════════════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════════════════ */
@@ -33,6 +36,10 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase()
+}
+
+function instagramUrl(handle: string): string {
+  return `https://www.instagram.com/${encodeURIComponent(handle)}/`
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -167,39 +174,49 @@ export function MapSidebar({
                   [city, country].filter(Boolean).join(", ") || locationName
 
                 return (
-                  <li key={`${props.locationId}-${i}`}>
-                    <button
-                      onClick={() => onSelectFeature(feature)}
-                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-brand-500/5"
-                    >
-                      <SidebarAvatar
-                        url={profilePicUrl}
-                        name={name}
-                        isGuestSpot={isGuestSpot}
-                      />
+                  <li
+                    key={`${props.locationId}-${i}`}
+                    className="relative flex items-start gap-3 px-4 py-3 transition-colors hover:bg-brand-500/5"
+                  >
+                    <SidebarAvatar
+                      url={profilePicUrl}
+                      name={name}
+                      isGuestSpot={isGuestSpot}
+                    />
 
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {name}
-                        </p>
-                        {handle && (
-                          <p className="truncate text-xs text-muted-foreground">
-                            @{handle}
-                          </p>
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      {/* The button's ::after covers the whole row, so the row
+                          is still one click target; the handle link sits above it */}
+                      <button
+                        onClick={() => onSelectFeature(feature)}
+                        aria-label={`Show ${name} on the map`}
+                        className="block w-full text-left text-sm font-medium text-foreground outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-brand-500/50 focus-visible:after:ring-inset"
+                      >
+                        <span className="block truncate">{name}</span>
+                      </button>
+                      {handle && (
+                        <a
+                          href={instagramUrl(handle)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`Open @${handle} on Instagram`}
+                          className="relative z-10 block w-fit max-w-full truncate text-xs text-muted-foreground transition-colors hover:text-brand-300 hover:underline"
+                        >
+                          @{handle}
+                        </a>
+                      )}
+                      <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground/70">
+                        {isGuestSpot ? (
+                          <Plane className="size-3 shrink-0 text-guest-500" />
+                        ) : isPrimary ? (
+                          <MapPin className="size-3 shrink-0 text-brand-400" />
+                        ) : (
+                          <MapPin className="size-3 shrink-0 text-muted-foreground" />
                         )}
-                        <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground/70">
-                          {isGuestSpot ? (
-                            <Plane className="size-3 shrink-0 text-guest-500" />
-                          ) : isPrimary ? (
-                            <MapPin className="size-3 shrink-0 text-brand-400" />
-                          ) : (
-                            <MapPin className="size-3 shrink-0 text-muted-foreground" />
-                          )}
-                          {locationText}
-                        </p>
-                      </div>
-                    </button>
+                        {locationText}
+                      </p>
+                    </div>
                   </li>
                 )
               })}

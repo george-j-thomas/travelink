@@ -6,7 +6,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -397,8 +397,17 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
     const [selected, setSelected] = useState<SelectedGroup | null>(null)
     const [cursor, setCursor] = useState("")
 
-    // Expose map ref to parent for flyTo / external control
-    useImperativeHandle(forwardedRef, () => localRef.current as MapRef, [])
+    // Expose map ref to parent for flyTo / external control. react-map-gl only
+    // sets its ref once the map has loaded (asynchronously), so pass every
+    // update on; copying it at mount left the parent with null
+    const setMapRef = useCallback(
+      (map: MapRef | null) => {
+        localRef.current = map
+        if (typeof forwardedRef === "function") forwardedRef(map)
+        else if (forwardedRef) forwardedRef.current = map
+      },
+      [forwardedRef],
+    )
 
     /* ── Pan so an opened popup isn't clipped or hidden under controls ── */
     useEffect(() => {
@@ -425,6 +434,17 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
     }, [selected])
 
     /* ── Query visible (unclustered) features ── */
+    // Rendered features carry tile geometry, rounded at the current zoom (up to
+    // ~500 m at world view), so hand on each location's exact point instead
+    const geometryById = useMemo(() => {
+      const byId: Record<string, GeoJSON.Geometry | undefined> = {}
+      for (const f of data.features) {
+        const id = f.properties?.locationId as string | undefined
+        if (id) byId[id] = f.geometry
+      }
+      return byId
+    }, [data])
+
     const updateVisibleFeatures = useCallback(() => {
       const map = localRef.current?.getMap()
       if (!map || !map.isStyleLoaded()) return
@@ -450,7 +470,7 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
             seen.add(id)
             unique.push({
               type: "Feature",
-              geometry: f.geometry,
+              geometry: geometryById[id] ?? f.geometry,
               properties: f.properties,
             })
           }
@@ -460,7 +480,7 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
       } catch {
         // Map may not be fully ready yet — ignore
       }
-    }, [onVisibleFeaturesChange])
+    }, [onVisibleFeaturesChange, geometryById])
 
     /* ── Click handler ── */
     const handleClick = useCallback((event: MapMouseEvent) => {
@@ -527,7 +547,7 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
 
     return (
       <Map
-        ref={localRef}
+        ref={setMapRef}
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
         mapStyle="mapbox://styles/mapbox/dark-v11"
         initialViewState={{
