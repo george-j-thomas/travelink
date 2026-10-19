@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireSession } from "@/lib/auth"
+import { DIRECTORY_ARTIST_WHERE } from "@/lib/artist-directory"
 import { prisma } from "@/lib/db"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -17,8 +18,10 @@ function matchesEtag(ifNoneMatch: string | null, etag: string): boolean {
     .some((tag) => tag === "*" || tag === etag)
 }
 
-// GET /api/artists/[id]/avatar?v=<version> — The stored copy of a tracked artist's
-// profile photo. Only serves what the bio fetch stored; it never downloads anything.
+// GET /api/artists/[id]/avatar?v=<version> — The stored copy of an artist's profile
+// photo, for users tracking the artist or (since search shows them) any signed-in
+// user when the artist is in the directory. Only serves what the bio fetch stored;
+// it never downloads anything.
 export async function GET(request: NextRequest, context: RouteContext) {
   let session
   try {
@@ -30,19 +33,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params
 
   try {
-    const link = await prisma.userArtist.findUnique({
-      where: { userId_artistId: { userId: session.user.id, artistId: id } },
-      select: {
-        artist: { select: { avatar: { select: { data: true, contentType: true, version: true } } } },
-      },
+    const artist = await prisma.artist.findFirst({
+      where: { id, OR: [{ users: { some: { userId: session.user.id } } }, DIRECTORY_ARTIST_WHERE] },
+      select: { avatar: { select: { data: true, contentType: true, version: true } } },
     })
-    if (!link) {
+    if (!artist) {
       return NextResponse.json(
         { error: "Artist not found" },
         { status: 404, headers: { "Cache-Control": SHORT_CACHE } }
       )
     }
-    const avatar = link.artist.avatar
+    const avatar = artist.avatar
     if (!avatar) {
       return NextResponse.json(
         { error: "No stored photo" },
