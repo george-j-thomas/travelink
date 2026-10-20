@@ -30,6 +30,13 @@ const NON_PROFILE_PATHS = new Set([
   "oauth",
   "directory",
   "your_activity",
+  "notifications",
+  "create",
+  "session",
+  "push",
+  "archive",
+  "download",
+  "ar",
 ])
 
 const NOT_INSTAGRAM_LINK = "That isn't an Instagram link. Enter a handle, or paste a link to the artist's profile."
