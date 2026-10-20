@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { InstagramIcon } from "@/components/icons/instagram";
+import { safeCallbackPath } from "@/lib/callback-url";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+/** Where to go after signing in: the page that sent the user here, if it's on travel-ink, else /map. */
+function afterSignInPath(): string {
+  const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl");
+  return safeCallbackPath(callbackUrl, window.location.origin);
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,7 +62,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
-        router.push("/map");
+        router.push(afterSignInPath());
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -136,7 +143,7 @@ export default function LoginPage() {
               type="button"
               variant="outline"
               className="w-full gap-2 border-border/60 hover:border-pink-500/40 hover:bg-pink-500/5"
-              onClick={() => signIn("instagram", { callbackUrl: "/map" })}
+              onClick={() => signIn("instagram", { callbackUrl: afterSignInPath() })}
               disabled={isLoading}
             >
               <InstagramIcon className="h-4 w-4 text-pink-400" />
