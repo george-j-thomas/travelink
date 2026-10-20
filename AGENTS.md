@@ -21,12 +21,13 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `artist-directory.ts` — Add page search (DB only). `searchArtistDirectory` matches handle prefixes, name word prefixes and handle segments after `.`/`_` among the user's own artists (any account type), then the directory of artists other users added; at most 10, ranked exact handle → handle prefix → name → segment. `DIRECTORY_ARTIST_WHERE` (shared with the avatar route) decides who's in the directory: `accountType` `business` or `creator`, tracked by at least one user. Not `fetchStatus: "fetched"`, which early imports also set on personal accounts. Directory rows only get the stored photo, never `profilePicUrl` (that can be a hint from whoever added the artist). Prisma doesn't escape `%`/`_` in `contains`/`startsWith`, so user input goes through `escapeLike`
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
   - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent. Following-list entries carry `isPrivate` — Instagram doesn't say which are business accounts, but Business/Creator accounts can't be private
-  - `instagram-handle.ts` — Handle rules (`normalizeHandle`, `isValidHandle`) and profile-link parsing: `parseHandleInput` accepts a handle, `@handle` or an `instagram.com/<handle>` link (with or without `https://`, `www.`/`m.`, a trailing slash or a query string like `?igsh=`), and rejects posts, reels, stories and other non-profile paths. Imported by client pages too, so it must stay free of server-only imports
+  - `instagram-handle.ts` — Handle rules (`normalizeHandle`, `isValidHandle`) and profile-link parsing: `parseHandleInput` accepts a handle, `@handle` or an `instagram.com/<handle>` link (with or without `https://`, `www.`/`m.`, a trailing slash or a query string like `?igsh=`), and rejects posts, reels, stories and other non-profile paths (`NON_PROFILE_PATHS`, Instagram's reserved routes). Imported by client pages and also bundled into the browser extension (`extension/src/profile-path.ts`), so it must stay client-safe, free of server-only imports. Changes affect both the app and the extension: `NON_PROFILE_PATHS` also decides where the extension's button shows. Type-check both (`npx tsc --noEmit` and `npm run ext:typecheck`); the extension only picks up changes when it's rebuilt
   - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
   - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers). Instagram OAuth only signs in already-linked accounts (no sign-up)
   - `auth.ts` — `requireSession()` (also rejects deleted/disabled users with a DB lookup, since JWTs live 30 days) and `requireAdmin()` (throws `ForbiddenError`)
+  - `callback-url.ts` — `safeCallbackPath(callbackUrl, origin)`: where to go after signing in. Gives a same-origin relative path (query and hash kept), else `/map`: other origins (including `//x` and `/\x`), non-http(s) schemes and `/login` / `/register` (they'd loop) all fall back. `src/middleware.ts` sends signed-out users on `/artists`, `/map` and `/admin` to `/login?callbackUrl=<path + query>`, relative, and the login page passes it through `safeCallbackPath` for both credentials and Instagram sign-in, so a signed-out user lands back on the page they asked for (e.g. `/artists/add?handle=foo`). Known gap: a refused Instagram sign-in redirects to `/login?error=InviteRequired`, which drops `callbackUrl`. The login page runs it in the browser, so it must stay free of server-only imports
   - `admin.ts` — Admins are the emails in `ADMIN_EMAILS` (comma-separated env var), not a DB role
   - `access.ts` — Invite-only registration (`registerUser` consumes a single-use invite atomically), invite create/revoke, user disable
   - `bio-refresh.ts` — `REFRESH_CONFIRM_WINDOW_MS` and `isRecentlyFetched`. Imported by client pages too, so it must stay free of server-only imports
@@ -43,6 +44,12 @@ Tattoo artist location tracker. Users import their Instagram following list, the
 - `src/components/` — React components. `ui/` is shadcn-managed (do not hand-edit). Custom components sit alongside.
   - `bio-queue.tsx` — `BioQueueProvider` (in the `(app)` layout) drains pending bios by calling `POST /api/artists/fetch-next` in a loop, waiting the returned `nextDelayMs`; rate-limit pauses persist in localStorage. All queue state lives in the DB, so navigation never loses work
 
+- `extension/` — Browser extension (Chrome MV3; also installs in Brave and Edge), built separately from the app. v0 shows a floating "Add @handle" button on Instagram profile pages; its link opens `<origin>/artists/add?handle=<handle>` in a new tab (no opener, no referrer), where the user confirms (see Add Flow). It only reads the handle from the URL: no Instagram API calls, no Instagram cookies, no scraping. It never adds anything itself. Its only access is one content script on `https://www.instagram.com/*` (no `permissions`, `host_permissions`, service worker or popup). Details in `extension/README.md`
+  - `src/content.ts` — Polls `location.pathname` every 500 ms (plus `popstate`) to follow Instagram's SPA navigation, and shows or hides the button. `src/profile-path.ts` (`profileHandleFromPath`, pure) gets the handle with `instagram-handle.ts`
+  - `src/button.ts` — The button, in a closed shadow root styled with a constructed stylesheet (`adoptedStyleSheets`, which Instagram's CSP doesn't block); no `innerHTML`. Bottom right, above Instagram's Messages pill. Minimizing shrinks it to a badge until the page reloads
+  - `build.mjs` — esbuild bundles the scripts into `extension/dist/` (gitignored; the folder to load or zip) and sharp renders `icons/icon.svg` to 16/32/48/128 PNGs. `TRAVELINK_URL` sets the travel-ink origin at build time (scripts read it as `TRAVELINK_ORIGIN` from `src/config.ts`): default `http://localhost:3000`, a bare origin, https unless it's `localhost` or `127.0.0.1`
+  - Own `tsconfig.json` (DOM + `chrome` types). The root `tsconfig.json` excludes `extension`, so Next's type check and build never see it; the root ESLint run covers it
+
 ### Import Flow
 1. Get the following list (cookie scrape via `/api/import/scrape`, or data export via `/api/import/upload`) — returns accounts only, nothing is saved server-side. The import page keeps the list + selection as a per-user localStorage draft
 2. The select step's "Hide personal" filter (on by default) hides untracked accounts that are private (scrape only; exports have `isPrivate: null`) or that `POST /api/import/account-types` reports as personal. It never calls Business Discovery — classifying whole lists would burn the shared rate limit and daily budgets. Accounts with a tattoo word in their handle or name (`TATTOO_WORDS`, client-side) are grouped first under "Likely tattoo artists"
@@ -54,6 +61,8 @@ Bios aren't re-fetched automatically. The artist page's "Refresh bio" calls `POS
 ### Add Flow
 The Add page's field takes a name, a handle or a profile link; a pasted link is replaced by its handle. As the user types, `GET /api/artists/directory?q=` (2–60 characters) suggests matches, grouped as "On your list" (opens the artist), "Added by other travel-ink users", "From Instagram" (only with a connected cookie, via `POST /api/instagram/search`), and a final "Not here? Add @handle". `useDebouncedSearch` (`src/hooks/`) debounces each source, cancels superseded requests and caches results per query. Enter without a highlighted suggestion adds the typed handle. Adding calls `POST /api/artists` (`addArtistByHandle`), which only looks the artist up when they're new, pending or failed, so adding a directory artist whose bio is already fetched makes no external calls
 
+Opened with `?handle=` (how the browser extension links here), the page reads it once with `parseHandleInput` (a handle, `@handle` or a profile link) and removes it from the address bar, so a reload doesn't fill it in again. A valid handle fills in and focuses the field and shows the suggestions, searching only the travel-ink directory (a new tab has no Instagram cookie). An invalid value shows the usual validation message. Nothing is added until the user clicks a suggestion or presses Enter. Signed-out users sign in first and come back to the same URL (see `callback-url.ts`)
+
 ### Data Flow
 Artists are **shared** across users. `UserArtist` is the join table — deleting an artist from a user's list only removes the link, not the artist record. Other users can find an artist in Add page search only while it's in the directory (public Business/Creator accounts, `DIRECTORY_ARTIST_WHERE`). Never reveal who added an artist or how many users track one: with a small invite-only user base, that could identify someone.
 
@@ -62,15 +71,20 @@ Business/creator profile photos are stored in `artist_avatars` (one row per arti
 ## Build and Test
 
 ```sh
-npm run dev          # Start dev server (Turbopack)
-npm run build        # Production build
-npm run lint         # ESLint
-npx tsc --noEmit     # Type check
-npx prisma generate  # Regenerate Prisma client after schema changes
+npm run dev            # Start dev server (Turbopack)
+npm run build          # Production build
+npm run lint           # ESLint (covers extension/ too)
+npx tsc --noEmit       # Type check (skips extension/)
+npx prisma generate    # Regenerate Prisma client after schema changes
 npx prisma migrate dev --name <name>  # Create + apply migration
+npm run ext:build      # Build the browser extension into extension/dist/
+npm run ext:watch      # Rebuild the extension's scripts on change
+npm run ext:typecheck  # Type check the extension (extension/tsconfig.json)
 ```
 
-Use Node 24 (`nvm use` reads `.nvmrc`). sharp, which stores avatars, needs Node 20.9 or later.
+Use Node 24 (`nvm use` reads `.nvmrc`) for both the app and the extension. sharp, which stores avatars and renders the extension's icons, needs Node 20.9 or later.
+
+Extension builds link to `http://localhost:3000` by default. For a release build, set `TRAVELINK_URL` to travel-ink's https origin: `TRAVELINK_URL=https://<travel-ink domain> npm run ext:build`. To try a build, load `extension/dist/` unpacked (see `docs/development.md`).
 
 ## Conventions
 
@@ -118,6 +132,7 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 - `NEXT_PUBLIC_*` — Client-accessible (only Mapbox token)
 - Everything else is server-only (Instagram tokens, Anthropic key, DB URL, NextAuth secret)
 - See `.env.example` for the full list
+- Exception: `TRAVELINK_URL` is for the extension build only. `extension/build.mjs` reads it from the shell, not `.env`, and bakes it into the (public) extension bundle
 
 ### Access and Cost Control
 - Registration is invite-only (admin emails can register without one). New sign-up paths must go through `registerUser` in `@/lib/access`
@@ -137,3 +152,5 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 - Instagram cookie rejections return 403 with `code: "instagram_session"`, never 401 — clients treat 401 as a travel-ink logout
 - Do not add in-memory background jobs — the app is deployed on Vercel (serverless); long work must be client-driven or step-based
 - Do not wrap slow external API calls (Instagram, Claude, Mapbox) in Prisma transactions
+- Do not make the browser extension call Instagram (APIs or scraping), read Instagram cookies or add artists by itself — it only reads the handle from the URL and opens the Add page, where the user confirms. Don't give it permissions a feature doesn't need (v0 needs none beyond its content script)
+- Do not redirect after sign-in to a `callbackUrl` that hasn't been through `safeCallbackPath` — that's an open redirect

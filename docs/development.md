@@ -1,7 +1,7 @@
 # Development
 
-How to run travel-ink locally, connect the services it uses, and deploy it. For what the app does, see the
-[README](../README.md).
+How to run travel-ink locally, connect the services it uses, deploy it, and build the browser extension. For what the
+app does, see the [README](../README.md).
 
 ## Running locally
 
@@ -96,3 +96,48 @@ Business Discovery is free. It allows roughly 200 calls per hour, and requires:
 
 Note: cookie requests (following list, search) on Vercel come from data-center IPs, which Instagram treats more
 suspiciously than a home connection. They are kept to a minimum: one paginated list read per import.
+
+## Browser extension
+
+`extension/` is a browser extension for Chrome, Brave and Edge. On an Instagram profile it shows an **Add @handle**
+button that opens travel-ink's Add page with the handle filled in. [extension/README.md](../extension/README.md)
+explains how it works and how to zip it for the Chrome Web Store.
+
+### Building and loading it
+
+Use Node 24, like the app (`nvm use`). The build renders the icons with sharp, which needs Node 20.9 or later. The
+root `npm install` installs everything it uses; the extension has no `package.json` of its own. Run these from the
+repo root:
+
+```sh
+npm run ext:build       # build into extension/dist/
+npm run ext:watch       # rebuild the scripts on change
+npm run ext:typecheck   # type check (the root tsconfig.json excludes extension/)
+```
+
+To load it:
+
+1. Run `npm run ext:build`.
+2. Open `chrome://extensions` (Brave: `brave://extensions`, Edge: `edge://extensions`) and turn on **Developer mode**.
+3. Click **Load unpacked** and pick `extension/dist/`, not `extension/`.
+4. Start the dev server (`npm run dev`), open an Instagram profile and click the button. It opens
+   `http://localhost:3000/artists/add?handle=<handle>` in a new tab. If you're signed out, you sign in first and come
+   back to it.
+
+After a rebuild, click the extension's reload button on the extensions page, then reload the Instagram tab.
+`ext:watch` only rebuilds the scripts, so restart it after editing `manifest.json` or `icons/icon.svg`.
+
+### `TRAVELINK_URL`
+
+The button links to the travel-ink origin in `TRAVELINK_URL`, which is fixed at build time. It defaults to
+`http://localhost:3000`, so a default build only works with the local dev server. If that runs on another port, set
+it, e.g. `TRAVELINK_URL=http://localhost:3001 npm run ext:build`.
+
+For a release build, set it to your production URL, the same origin as `NEXTAUTH_URL`:
+
+```sh
+TRAVELINK_URL=https://<travel-ink domain> npm run ext:build
+```
+
+It must be a bare origin (no path) and use https, unless the host is `localhost` or `127.0.0.1`. Otherwise the build
+fails. It's read from the shell, not from `.env`.
