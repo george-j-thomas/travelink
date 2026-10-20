@@ -51,7 +51,10 @@ each one is based and where they're guesting next.
   `following.json` from an Instagram data export. The import page explains how to get either one. Tick the artists
   you want and they're saved right away. The list and your ticks stay in this browser, so you can come back and add
   more in batches
-- **Add one artist.** Enter their Instagram handle, or connect your session cookie to search as you type
+- **Add one artist.** Start typing a name or handle and travel-ink suggests artists on your list and ones other
+  travel-ink users have added. If the artist isn't there, enter their Instagram handle or paste a link to their
+  profile (in the Instagram app: open their profile and tap ⋯ → Copy profile URL). Connect your session cookie to
+  search all of Instagram as you type, too
 
 Bios load in the background while any travel-ink page is open, so you can keep browsing. The Artists page shows how
 many are left. If Instagram limits requests, the queue pauses and picks up again by itself. Nothing is lost.
@@ -73,6 +76,9 @@ Your Instagram session cookie stays in the open tab's memory. It's dropped when 
 out, and it's never stored on the server. The server only accepts it from the travel-ink account that connected it.
 It's used only to read your following list and to search Instagram when you add an artist. Importing a data export
 doesn't need the cookie at all.
+
+Artists you add can show up when other travel-ink users search, but only public Business and Creator accounts, which
+Instagram shows to anyone. Search never shows who added an artist or how many people have.
 
 ## Invites and limits
 

@@ -5,6 +5,8 @@
 // Personal accounts are not returned by the API. Rate limit is ~200 calls/hour
 // per token; usage headers are exposed so callers can pace themselves.
 
+import { isValidHandle, normalizeHandle } from "@/lib/instagram-handle"
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -71,7 +73,6 @@ export class BusinessDiscoveryConfigError extends Error {
 // ---------------------------------------------------------------------------
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v25.0"
-const HANDLE_REGEX = /^[a-z0-9._]{1,30}$/
 
 // https://developers.facebook.com/docs/graph-api/overview/rate-limiting
 const RATE_LIMIT_CODES = new Set([4, 17, 32, 613])
@@ -81,14 +82,6 @@ const AUTH_ERROR_CODES = new Set([102, 190])
 const isPermissionError = (code: number) => code === 10 || (code >= 200 && code <= 299)
 // "Cannot find User" — no such account, or a personal (non-professional) account
 const USER_NOT_FOUND_SUBCODE = 2207013
-
-export function normalizeHandle(raw: string): string {
-  return raw.trim().replace(/^@+/, "").trim().toLowerCase()
-}
-
-export function isValidHandle(handle: string): boolean {
-  return HANDLE_REGEX.test(handle)
-}
 
 export function isBusinessDiscoveryConfigured(): boolean {
   return Boolean(

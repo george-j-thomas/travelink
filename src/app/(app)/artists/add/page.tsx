@@ -32,7 +32,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useBioQueue } from "@/components/bio-queue"
 import { useCurrentUserId } from "@/hooks/use-current-user-id"
+import { useDebouncedSearch } from "@/hooks/use-debounced-search"
 import { useInstagramCookie } from "@/hooks/use-instagram-cookie"
+import type { DirectoryArtist } from "@/lib/artist-directory"
+import { looksLikeLink, parseHandleInput, parseProfileLink } from "@/lib/instagram-handle"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -45,6 +48,13 @@ interface SearchUser {
   isVerified: boolean
   isPrivate: boolean
 }
+
+/** A row in the suggestions list */
+type Suggestion =
+  | { kind: "own"; artist: DirectoryArtist }
+  | { kind: "directory"; artist: DirectoryArtist }
+  | { kind: "instagram"; user: SearchUser }
+  | { kind: "add"; handle: string }
 
 interface ArtistLocation {
   id: string
@@ -90,24 +100,29 @@ const STEPS = [
 const STEP_ADVANCE_MS = 1200
 const DONE_PAUSE_MS = 500
 
-// Each search is a request to Instagram with the user's cookie — keep them sparse
-const SEARCH_DEBOUNCE_MS = 400
+// travel-ink search is a cheap database query
+const DIRECTORY_DEBOUNCE_MS = 200
+// Each Instagram search is a request with the user's cookie — keep them sparse
+const INSTAGRAM_DEBOUNCE_MS = 400
 const SEARCH_MIN_CHARS = 2
+const SEARCH_MAX_CHARS = 60
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function stripAt(raw: string) {
-  return raw.replace(/^@+/, "").trim()
-}
-
-function validateHandle(value: string): string | null {
-  if (!value) return "Please enter an Instagram handle"
-  if (value.length > 30) return "Handle is too long (max 30 characters)"
-  if (!/^[a-zA-Z0-9._]+$/.test(value))
-    return "Handles can only contain letters, numbers, periods, and underscores"
-  return null
+/** What to search for: the handle in a profile link, or the typed text. Null if there's nothing to search. */
+function searchTermFor(input: string): string | null {
+  const text = input.trim()
+  let term: string
+  if (looksLikeLink(text)) {
+    const link = parseProfileLink(text)
+    if (!link.ok) return null
+    term = link.handle
+  } else {
+    term = text.replace(/^@+/, "").replace(/\s+/g, " ").trim().toLowerCase()
+  }
+  return term.length >= SEARCH_MIN_CHARS && term.length <= SEARCH_MAX_CHARS ? term : null
 }
 
 function getInitials(name: string | null, handle: string): string {
@@ -127,6 +142,112 @@ function formatLocation(loc: ArtistLocation): string {
   return parts.length > 0 ? parts.join(", ") : loc.locationName
 }
 
+function formatPlace(city: string | null, country: string | null): string | null {
+  return [city, country].filter(Boolean).join(", ") || null
+}
+
+function SuggestionGroup({
+  id,
+  label,
+  children,
+}: {
+  id: string
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      role="group"
+      aria-labelledby={id}
+      className="border-t border-border/50 py-1 first:border-t-0"
+    >
+      <div
+        id={id}
+        role="presentation"
+        className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80"
+      >
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function SuggestionContent({ suggestion }: { suggestion: Suggestion }) {
+  switch (suggestion.kind) {
+    case "own":
+    case "directory": {
+      const { artist } = suggestion
+      const details = [artist.displayName, formatPlace(artist.city, artist.country)]
+        .filter(Boolean)
+        .join(" · ")
+      return (
+        <>
+          <Avatar className="size-9">
+            {artist.profilePicUrl && (
+              <AvatarImage src={artist.profilePicUrl} alt="" referrerPolicy="no-referrer" />
+            )}
+            <AvatarFallback className="text-xs">
+              {getInitials(artist.displayName, artist.instagramHandle)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{artist.instagramHandle}</p>
+            {details && <p className="truncate text-xs text-muted-foreground">{details}</p>}
+          </div>
+          {/* Your own artists open; other users' are added to your list */}
+          {suggestion.kind === "own" ? (
+            <ArrowRight aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <Plus aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+        </>
+      )
+    }
+    case "instagram": {
+      const { user } = suggestion
+      return (
+        <>
+          <Avatar className="size-9">
+            {user.profilePicUrl && (
+              <AvatarImage src={user.profilePicUrl} alt="" referrerPolicy="no-referrer" />
+            )}
+            <AvatarFallback className="text-xs">
+              {getInitials(user.fullName, user.username)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1 text-sm font-medium">
+              <span className="truncate">{user.username}</span>
+              {user.isVerified && (
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+              )}
+            </p>
+            {(user.fullName || user.isPrivate) && (
+              <p className="truncate text-xs text-muted-foreground">
+                {[user.fullName, user.isPrivate && "Private"].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </div>
+          <Plus aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </>
+      )
+    }
+    case "add":
+      return (
+        <>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10">
+            <Plus aria-hidden className="h-4 w-4 text-brand-400" />
+          </span>
+          <p className="min-w-0 flex-1 truncate text-sm">
+            <span className="text-muted-foreground">Not here?</span>{" "}
+            <span className="font-medium">Add @{suggestion.handle}</span>
+          </p>
+        </>
+      )
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -137,31 +258,98 @@ export default function AddArtistPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const [handle, setHandle] = useState("")
+  // What's typed in the field: a name or handle to search for, or a profile link
+  const [input, setInput] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<ViewState>("idle")
   const [step, setStep] = useState(0)
   const [result, setResult] = useState<ArtistResult | null>(null)
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
 
-  // -- Instagram search
+  // -- travel-ink search: the user's own artists, then ones other users added
+  const directory = useDebouncedSearch<DirectoryArtist[]>(async (query, signal) => {
+    const res = await fetch(`/api/artists/directory?q=${encodeURIComponent(query)}`, { signal })
+    if (res.status === 401) {
+      router.push("/login")
+      return null
+    }
+    if (!res.ok) return null
+    const data = (await res.json()) as { artists: DirectoryArtist[] }
+    return data.artists
+  }, DIRECTORY_DEBOUNCE_MS)
+
+  // -- Instagram search (optional, through the user's own cookie)
   const userId = useCurrentUserId()
   const { cookie, save: saveCookie, clear: clearCookie } = useInstagramCookie()
   const [cookieDraft, setCookieDraft] = useState("")
-  const [results, setResults] = useState<SearchUser[]>([])
-  const [searching, setSearching] = useState(false)
+  // Why Instagram search stopped (session rejected or rate limited). Unlike a
+  // failed search, it stays until Instagram is connected again
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchPaused, setSearchPaused] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(-1)
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const searchAbortRef = useRef<AbortController | null>(null)
-  const searchCacheRef = useRef(new Map<string, SearchUser[]>())
+  const instagram = useDebouncedSearch<SearchUser[]>(async (query, signal) => {
+    const res = await fetch("/api/instagram/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, sessionId: cookie, ownerId: userId }),
+      signal,
+    })
+
+    if (res.status === 401) {
+      router.push("/login")
+      return null
+    }
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      if (data.code === "instagram_session") {
+        clearCookie()
+        setSearchError(data.error)
+      } else if (res.status === 429) {
+        // Stop searching Instagram for the rest of this visit
+        setSearchPaused(true)
+        setSearchError("Instagram search is rate limited right now. You can still type the full handle.")
+      }
+      return null
+    }
+
+    return data.users as SearchUser[]
+  }, INSTAGRAM_DEBOUNCE_MS)
+
+  // -- Suggestions, in display order
+  const term = searchTermFor(input)
+  const found = directory.results ?? []
+  const own = found.filter((a) => a.onList)
+  const others = found.filter((a) => !a.onList)
+  const shownHandles = new Set(found.map((a) => a.instagramHandle))
+  const fromInstagram = cookie
+    ? (instagram.results ?? []).filter((u) => !shownHandles.has(u.username.toLowerCase()))
+    : []
+  for (const user of fromInstagram) shownHandles.add(user.username.toLowerCase())
+  const instagramNotice =
+    searchError ??
+    (cookie && instagram.failed
+      ? "Instagram search failed. You can still type the full handle."
+      : null)
+  const entered = parseHandleInput(input)
+  const addable = entered.ok && !shownHandles.has(entered.handle) ? entered.handle : null
+  const suggestions: Suggestion[] = [
+    ...own.map((artist) => ({ kind: "own" as const, artist })),
+    ...others.map((artist) => ({ kind: "directory" as const, artist })),
+    ...fromInstagram.map((user) => ({ kind: "instagram" as const, user })),
+    ...(addable ? [{ kind: "add" as const, handle: addable }] : []),
+  ]
+  // Wait for travel-ink's results, so the list doesn't jump when they arrive
+  const showList =
+    open &&
+    term !== null &&
+    (directory.results !== null || (!directory.loading && suggestions.length > 0))
+  const activeIndex = showList && active < suggestions.length ? active : -1
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-      searchAbortRef.current?.abort()
     }
   }, [])
 
@@ -173,11 +361,14 @@ export default function AddArtistPage() {
   }
 
   function reset() {
-    setHandle("")
+    setInput("")
     setError(null)
     setResult(null)
-    setResults([])
+    // Adding an artist changes which results are on the user's list
+    directory.reset()
+    instagram.clear()
     setOpen(false)
+    setActive(-1)
     setView("idle")
     setStep(0)
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -187,117 +378,109 @@ export default function AddArtistPage() {
   /*  Search-as-you-type                                                */
   /* ---------------------------------------------------------------- */
 
-  function cancelPendingSearch() {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = null
-    searchAbortRef.current?.abort()
-    searchAbortRef.current = null
+  function stopSearches() {
+    directory.cancel()
+    instagram.cancel()
   }
 
-  function onHandleChange(raw: string) {
-    const query = stripAt(raw)
-    setHandle(query)
-    if (error) setError(null)
-
-    cancelPendingSearch()
+  function onInputChange(raw: string) {
+    let value = raw
+    let pasteError: string | null = null
+    // A pasted profile link becomes its handle (a typed one stays as typed)
+    if (value.length > input.length + 1 && looksLikeLink(value)) {
+      const link = parseProfileLink(value)
+      if (link.ok) value = link.handle
+      else pasteError = link.error
+    }
+    setInput(value)
+    setError(pasteError)
     setActive(-1)
+    setOpen(true)
 
-    if (!cookie || searchPaused || query.length < SEARCH_MIN_CHARS) {
-      setResults([])
-      setSearching(false)
-      setOpen(false)
+    const query = searchTermFor(value)
+    if (!query) {
+      directory.clear()
+      instagram.clear()
       return
     }
+    directory.search(query)
+    if (cookie && !searchPaused) instagram.search(query)
+    else instagram.clear()
+  }
 
-    const cached = searchCacheRef.current.get(query.toLowerCase())
-    if (cached) {
-      setResults(cached)
-      setSearching(false)
+  function selectSuggestion(suggestion: Suggestion) {
+    stopSearches()
+    setOpen(false)
+    setActive(-1)
+    switch (suggestion.kind) {
+      case "own":
+        router.push(`/artists/${suggestion.artist.id}`)
+        break
+      case "directory":
+        void addHandle(suggestion.artist.instagramHandle)
+        break
+      case "instagram":
+        void addHandle(suggestion.user.username, suggestion.user)
+        break
+      case "add":
+        void addHandle(suggestion.handle)
+        break
+    }
+  }
+
+  function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setOpen(false)
+      setActive(-1)
+      return
+    }
+    if (e.key === "ArrowDown" && !open) {
+      e.preventDefault()
       setOpen(true)
       return
     }
-
-    setSearching(true)
-    setOpen(true)
-    searchTimerRef.current = setTimeout(() => void runSearch(query), SEARCH_DEBOUNCE_MS)
-  }
-
-  async function runSearch(query: string) {
-    const controller = new AbortController()
-    searchAbortRef.current = controller
-
-    try {
-      const res = await fetch("/api/instagram/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, sessionId: cookie, ownerId: userId }),
-        signal: controller.signal,
-      })
-
-      if (res.status === 401) {
-        router.push("/login")
-        return
-      }
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setResults([])
-        setOpen(false)
-        if (data.code === "instagram_session") {
-          clearCookie()
-          setSearchError(data.error)
-        } else if (res.status === 429) {
-          // Stop searching for the rest of this visit
-          setSearchPaused(true)
-          setOpen(false)
-          setSearchError("Search is rate limited right now. You can still type the full handle.")
-        } else {
-          setSearchError("Search failed. You can still type the full handle.")
-        }
-        return
-      }
-
-      const users = data.users as SearchUser[]
-      searchCacheRef.current.set(query.toLowerCase(), users)
-      setResults(users)
-      setSearchError(null)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
-      setOpen(false)
-      setSearchError("Search failed. You can still type the full handle.")
-    } finally {
-      if (searchAbortRef.current === controller) {
-        searchAbortRef.current = null
-        setSearching(false)
-      }
-    }
-  }
-
-  function selectUser(user: SearchUser) {
-    cancelPendingSearch()
-    setOpen(false)
-    setHandle(user.username)
-    void addHandle(user.username, user)
-  }
-
-  function onHandleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!open || results.length === 0) {
-      if (e.key === "Escape") setOpen(false)
-      return
-    }
+    if (!showList || suggestions.length === 0) return
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setActive((i) => (i + 1) % results.length)
+      setActive((i) => (i + 1) % suggestions.length)
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
-      setActive((i) => (i <= 0 ? results.length - 1 : i - 1))
-    } else if (e.key === "Enter" && active >= 0) {
+      setActive((i) => (i <= 0 || i > suggestions.length ? suggestions.length - 1 : i - 1))
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      // Without a highlighted suggestion, Enter submits the typed handle
       e.preventDefault()
-      selectUser(results[active])
-    } else if (e.key === "Escape") {
-      setOpen(false)
+      selectSuggestion(suggestions[activeIndex])
     }
+  }
+
+  /** The options of one kind, keeping their index in `suggestions` for keyboard navigation. */
+  function renderSuggestions(kind: Suggestion["kind"]) {
+    return suggestions.map((suggestion, i) =>
+      suggestion.kind !== kind ? null : (
+        <button
+          key={
+            suggestion.kind === "instagram"
+              ? suggestion.user.username
+              : suggestion.kind === "add"
+                ? "add"
+                : suggestion.artist.id
+          }
+          id={`handle-option-${i}`}
+          type="button"
+          role="option"
+          aria-selected={i === activeIndex}
+          // Keep focus in the input so blur doesn't close the list first
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => selectSuggestion(suggestion)}
+          onMouseEnter={() => setActive(i)}
+          className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
+            i === activeIndex ? "bg-brand-500/10" : "hover:bg-muted/50"
+          }`}
+        >
+          <SuggestionContent suggestion={suggestion} />
+        </button>
+      )
+    )
   }
 
   /* ---------------------------------------------------------------- */
@@ -306,19 +489,20 @@ export default function AddArtistPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    cancelPendingSearch()
+    stopSearches()
     setOpen(false)
-    void addHandle(stripAt(handle))
+    void addHandle(input)
   }
 
-  async function addHandle(cleaned: string, known?: SearchUser) {
-    setHandle(cleaned)
-
-    const validationError = validateHandle(cleaned)
-    if (validationError) {
-      setError(validationError)
+  /** Adds a handle, or the handle in a profile link. */
+  async function addHandle(raw: string, known?: SearchUser) {
+    const parsed = parseHandleInput(raw)
+    if (!parsed.ok) {
+      setError(parsed.error)
       return
     }
+    const handle = parsed.handle
+    setInput(handle)
 
     setError(null)
     setView("loading")
@@ -339,7 +523,7 @@ export default function AddArtistPage() {
         headers: { "Content-Type": "application/json" },
         // Name + picture from search fill in the card until the bio is fetched
         body: JSON.stringify({
-          handle: cleaned,
+          handle,
           fullName: known?.fullName ?? undefined,
           profilePicUrl: known?.profilePicUrl ?? undefined,
         }),
@@ -506,7 +690,7 @@ export default function AddArtistPage() {
         <Card className="border-border/50 shadow-2xl shadow-black/25">
           <CardHeader>
             <CardTitle>
-              Adding @{handle}
+              Adding @{input}
             </CardTitle>
             <CardDescription>
               This usually takes a few seconds
@@ -567,15 +751,15 @@ export default function AddArtistPage() {
         /* -------------------------------------------------------- */
         /*  Form view (idle / error)                                 */
         /* -------------------------------------------------------- */
-        <Card className="border-border/50 shadow-2xl shadow-black/25">
+        // overflow-visible: the suggestions list may extend below the card
+        <Card className="overflow-visible border-border/50 shadow-2xl shadow-black/25">
           <CardHeader>
             <CardTitle className="text-xl font-semibold tracking-tight">
               Add Artist
             </CardTitle>
             <CardDescription>
-              {cookie
-                ? "Search Instagram for a tattoo artist, or type their exact handle"
-                : "Enter a tattoo artist\u2019s Instagram handle"}
+              Search for a tattoo artist, enter their Instagram handle, or
+              paste a link to their profile
             </CardDescription>
           </CardHeader>
 
@@ -590,19 +774,17 @@ export default function AddArtistPage() {
 
             <form onSubmit={onSubmit} className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="handle">Instagram handle</Label>
+                <Label htmlFor="handle">Artist</Label>
                 <div className="relative">
-                  <span
+                  <Search
                     aria-hidden
-                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/50 select-none"
-                  >
-                    @
-                  </span>
+                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60"
+                  />
                   <Input
                     ref={inputRef}
                     id="handle"
                     type="text"
-                    placeholder={cookie ? "Search artists…" : "artist_handle"}
+                    placeholder="Name, @handle or profile link"
                     autoFocus
                     autoComplete="off"
                     autoCapitalize="none"
@@ -610,105 +792,99 @@ export default function AddArtistPage() {
                     spellCheck={false}
                     required
                     role="combobox"
-                    aria-expanded={open}
+                    aria-expanded={showList}
                     aria-controls="handle-results"
                     aria-autocomplete="list"
+                    aria-describedby="handle-help"
                     aria-activedescendant={
-                      active >= 0 ? `handle-option-${active}` : undefined
+                      activeIndex >= 0 ? `handle-option-${activeIndex}` : undefined
                     }
-                    value={handle}
-                    onChange={(e) => onHandleChange(e.target.value)}
-                    onKeyDown={onHandleKeyDown}
-                    onFocus={() => {
-                      if (results.length > 0) setOpen(true)
-                    }}
+                    value={input}
+                    onChange={(e) => onInputChange(e.target.value)}
+                    onKeyDown={onInputKeyDown}
+                    onFocus={() => setOpen(true)}
                     onBlur={() => setOpen(false)}
-                    className="pl-7 pr-8"
+                    className="pl-8 pr-8"
                   />
-                  {searching && (
+                  {(directory.loading || instagram.loading) && (
                     <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
                   )}
 
-                  {/* Results dropdown */}
-                  {open && (results.length > 0 || !searching) && (
+                  {/* Suggestions */}
+                  {showList && (
                     <div
                       id="handle-results"
                       role="listbox"
-                      className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-border/50 bg-background/80 py-1 shadow-2xl shadow-black/25 backdrop-blur-xl backdrop-saturate-150"
+                      aria-label="Suggestions"
+                      className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-96 overflow-y-auto rounded-lg border border-border/50 bg-background/80 py-1 shadow-2xl shadow-black/25 backdrop-blur-xl backdrop-saturate-150"
                     >
-                      {results.length === 0 ? (
-                        <p className="px-3 py-2.5 text-sm text-muted-foreground">
-                          No accounts found. Press Enter to add @{handle}.
-                        </p>
-                      ) : (
-                        results.map((user, i) => (
-                          <button
-                            key={user.username}
-                            id={`handle-option-${i}`}
-                            type="button"
-                            role="option"
-                            aria-selected={i === active}
-                            // Keep focus in the input so blur doesn't close the list first
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => selectUser(user)}
-                            onMouseEnter={() => setActive(i)}
-                            className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
-                              i === active ? "bg-brand-500/10" : "hover:bg-muted/50"
-                            }`}
-                          >
-                            <Avatar className="size-9">
-                              {user.profilePicUrl && (
-                                <AvatarImage
-                                  src={user.profilePicUrl}
-                                  alt=""
-                                  referrerPolicy="no-referrer"
-                                />
-                              )}
-                              <AvatarFallback className="text-xs">
-                                {getInitials(user.fullName, user.username)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <p className="flex items-center gap-1 text-sm font-medium">
-                                <span className="truncate">{user.username}</span>
-                                {user.isVerified && (
-                                  <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                                )}
-                              </p>
-                              {(user.fullName || user.isPrivate) && (
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {[user.fullName, user.isPrivate && "Private"]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        ))
+                      {own.length > 0 && (
+                        <SuggestionGroup id="handle-group-own" label="On your list">
+                          {renderSuggestions("own")}
+                        </SuggestionGroup>
+                      )}
+                      {directory.results !== null && (
+                        <SuggestionGroup
+                          id="handle-group-directory"
+                          label="Added by other travel-ink users"
+                        >
+                          {others.length > 0 ? (
+                            renderSuggestions("directory")
+                          ) : (
+                            <p className="px-3 py-1.5 text-sm text-muted-foreground">
+                              No matches
+                            </p>
+                          )}
+                        </SuggestionGroup>
+                      )}
+                      {fromInstagram.length > 0 && (
+                        <SuggestionGroup id="handle-group-instagram" label="From Instagram">
+                          {renderSuggestions("instagram")}
+                        </SuggestionGroup>
+                      )}
+                      {addable && (
+                        <div
+                          role="none"
+                          className="border-t border-border/50 pt-1 first:border-t-0"
+                        >
+                          {renderSuggestions("add")}
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {searchError ? (
-                  <p className="text-xs text-amber-300/90">{searchError}</p>
-                ) : (
-                  cookie && (
-                    <p className="text-xs text-muted-foreground">
-                      Instagram connected in this tab.{" "}
+                <p id="handle-help" className="text-xs text-muted-foreground">
+                  Searches artists other travel-ink users have already added
+                  {cookie ? (
+                    <>
+                      , and Instagram (connected in this tab).{" "}
                       <button
                         type="button"
                         onClick={() => {
                           clearCookie()
-                          setResults([])
-                          setOpen(false)
+                          instagram.clear()
                         }}
                         className="underline underline-offset-2 hover:text-foreground"
                       >
                         Disconnect
                       </button>
-                    </p>
-                  )
+                    </>
+                  ) : (
+                    "."
+                  )}
+                </p>
+                <p className="hidden text-xs text-muted-foreground pointer-coarse:block">
+                  On your phone? In the Instagram app, open the artist&apos;s
+                  profile and tap ⋯ → Copy profile URL, then paste it here.
+                </p>
+                {directory.failed && (
+                  <p className="text-xs text-amber-300/90">
+                    Couldn&apos;t search travel-ink. You can still type the full handle.
+                  </p>
+                )}
+                {instagramNotice && (
+                  <p className="text-xs text-amber-300/90">{instagramNotice}</p>
                 )}
               </div>
 
@@ -722,7 +898,7 @@ export default function AddArtistPage() {
               <div className="grid gap-2.5 rounded-lg border border-border/50 bg-muted/20 p-3.5">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <Search className="h-3.5 w-3.5 text-brand-300" />
-                  Search Instagram as you type
+                  Search all of Instagram too
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   Paste your Instagram{" "}
@@ -740,6 +916,7 @@ export default function AddArtistPage() {
                     setCookieDraft("")
                     setSearchError(null)
                     setSearchPaused(false)
+                    if (term) instagram.search(term)
                     inputRef.current?.focus()
                   }}
                   className="flex gap-2"

@@ -17,10 +17,9 @@ import {
   BusinessDiscoveryConfigError,
   fetchArtistProfile,
   isBusinessDiscoveryConfigured,
-  isValidHandle,
-  normalizeHandle,
   RateLimitError,
 } from "@/lib/instagram"
+import { isValidHandle, normalizeHandle } from "@/lib/instagram-handle"
 import { parseBioLocations } from "@/lib/bio-parser"
 import { BudgetExceededError, reserveUsage } from "@/lib/usage"
 import { geocodeLocation } from "@/lib/geocoding"
