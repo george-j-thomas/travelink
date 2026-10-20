@@ -266,6 +266,8 @@ export default function AddArtistPage() {
   const [result, setResult] = useState<ArtistResult | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
+  // The search term for the handle the page was opened with (?handle=)
+  const [prefillQuery, setPrefillQuery] = useState<string | null>(null)
 
   // -- travel-ink search: the user's own artists, then ones other users added
   const directory = useDebouncedSearch<DirectoryArtist[]>(async (query, signal) => {
@@ -278,6 +280,8 @@ export default function AddArtistPage() {
     const data = (await res.json()) as { artists: DirectoryArtist[] }
     return data.artists
   }, DIRECTORY_DEBOUNCE_MS)
+  // Stable across renders, unlike `directory`, so effects can depend on it
+  const searchDirectory = directory.search
 
   // -- Instagram search (optional, through the user's own cookie)
   const userId = useCurrentUserId()
@@ -352,6 +356,35 @@ export default function AddArtistPage() {
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [])
+
+  // Opened with ?handle= (e.g. by the browser extension, from an Instagram profile): fill in
+  // the field and show the suggestions, so the user sees whether the artist is already on
+  // their list. Never adds by itself: that still takes a click or Enter
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const value = url.searchParams.get("handle")
+    if (value === null) return
+    // Only once: reloading or coming back to the page shouldn't fill it in again
+    url.searchParams.delete("handle")
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
+
+    const parsed = parseHandleInput(value)
+    if (!parsed.ok) {
+      setInput(value.trim())
+      setError(parsed.error)
+      return
+    }
+    setInput(parsed.handle)
+    setOpen(true)
+    setPrefillQuery(searchTermFor(parsed.handle))
+    inputRef.current?.focus()
+  }, [])
+
+  // Searched in its own effect: in development, Strict Mode remounts the page once, which
+  // cancels searches started on mount. Instagram isn't searched: a new tab has no cookie
+  useEffect(() => {
+    if (prefillQuery) searchDirectory(prefillQuery)
+  }, [prefillQuery, searchDirectory])
 
   function clearTimer() {
     if (timerRef.current) {
