@@ -20,6 +20,10 @@
 # production
 /build
 
+# browser extension build output and Chrome Web Store zips
+/extension/dist/
+/extension/**/*.zip
+
 # misc
 .DS_Store
 *.pem

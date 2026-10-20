@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- travel-ink: a map pin (travel) whose hole is an ink drop (ink), on the app's dark
+       surface. Colors are the brand tokens in hex (librsvg can't read oklch):
+       tile #171717 → #0a0a0a (card → background), glow brand-600 #9810fa,
+       pin brand-300 #dab2ff → brand-500 #ad46ff, halo brand-400 #c27aff.
+       Paths, gradients and opacity only, so librsvg renders it as-is. At 16px it reads as
+       a purple pin with a dark hole; the glow, hairline and halo only show up at 48px+. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f1f1f"/>
+      <stop offset="1" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="64" cy="60" r="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9810fa" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#9810fa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pin" x1="0" y1="19" x2="0" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dab2ff"/>
+      <stop offset="1" stop-color="#ad46ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tile, ambient glow, hairline edge -->
+  <rect width="128" height="128" rx="28" fill="url(#tile)"/>
+  <rect width="128" height="128" rx="28" fill="url(#glow)"/>
+  <rect x="0.75" y="0.75" width="126.5" height="126.5" rx="27.25" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.5"/>
+
+  <!-- Halo where the pin meets the map -->
+  <ellipse cx="64" cy="110.5" rx="21" ry="5.5" fill="none" stroke="#c27aff" stroke-opacity="0.35" stroke-width="2.5"/>
+
+  <!-- Pin: head radius 34 centered at (64, 53), tip at the bottom -->
+  <path fill="url(#pin)" d="M30 53A34 34 0 0 1 98 53C98 76.4 81 95.5 68.8 108.8Q64 114 59.2 108.8C47 95.5 30 76.4 30 53Z"/>
+
+  <!-- Ink drop -->
+  <path fill="#0a0a0a" d="M64 32C64 32 51.25 45.8 51.25 56A12.75 12.75 0 0 0 76.75 56C76.75 45.8 64 32 64 32Z"/>
+</svg>
