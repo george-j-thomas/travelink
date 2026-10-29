@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { oidcFederationProvider } from "@anthropic-ai/sdk/lib/credentials/oidc-federation"
+import { getVercelOidcToken } from "@vercel/oidc"
 
 export interface ParsedLocation {
   locationName: string // Full location string, e.g. "Tokyo, Japan"
@@ -70,8 +72,47 @@ const LOCATIONS_SCHEMA = {
   additionalProperties: false,
 }
 
-// Singleton client — reads ANTHROPIC_API_KEY from env automatically
-const client = new Anthropic()
+/**
+ * With ANTHROPIC_FEDERATION_RULE_ID set, the client uses workload identity
+ * federation: the SDK trades Vercel's OIDC token for a short-lived Anthropic
+ * token and renews it, so there's no API key to rotate. Without it, the client
+ * uses ANTHROPIC_API_KEY.
+ */
+function createClient(): Anthropic {
+  const federationRuleId = process.env.ANTHROPIC_FEDERATION_RULE_ID
+  if (!federationRuleId) {
+    return new Anthropic()
+  }
+
+  const organizationId = process.env.ANTHROPIC_ORGANIZATION_ID
+  const serviceAccountId = process.env.ANTHROPIC_SERVICE_ACCOUNT_ID
+  if (!organizationId || !serviceAccountId) {
+    throw new Error(
+      "ANTHROPIC_FEDERATION_RULE_ID is set, so ANTHROPIC_ORGANIZATION_ID and ANTHROPIC_SERVICE_ACCOUNT_ID must be set too",
+    )
+  }
+
+  return new Anthropic({
+    // Left out, these are read from the environment, and a key there would win over credentials
+    apiKey: null,
+    authToken: null,
+    credentials: oidcFederationProvider({
+      // On Vercel this is the current request's token. Locally it's minted with
+      // the Vercel CLI login for the linked project (`vercel link`)
+      identityTokenProvider: () => getVercelOidcToken(),
+      federationRuleId,
+      organizationId,
+      serviceAccountId,
+      workspaceId: process.env.ANTHROPIC_WORKSPACE_ID || undefined,
+      baseURL: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
+      fetch,
+    }),
+  })
+}
+
+// Created on first use, so a configuration error surfaces as a failed parse
+// rather than breaking every route that imports this module
+let client: Anthropic | undefined
 
 export async function parseBioLocations(
   bio: string | null | undefined,
@@ -80,6 +121,7 @@ export async function parseBioLocations(
     return []
   }
 
+  client ??= createClient()
   const response = await client.messages.create({
     model: "claude-sonnet-5-5",
     max_tokens: 1024,

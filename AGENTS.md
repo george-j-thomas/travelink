@@ -22,7 +22,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `instagram.ts` — Official Business Discovery client (`graph.facebook.com`, server-side token). Maps Graph errors to `RateLimitError` / `BusinessDiscoveryConfigError`; personal accounts come back as `profile: null`
   - `instagram-scraper.ts` — Cookie-based internal web API client, used **only** for the user's following list and for account search on the Add page (profile fetches from Vercel IPs get rate-limited instantly). `InstagramSession` keeps a per-request cookie jar and follows redirects manually (Instagram sets cookies via self-redirects); sends the user's own browser User-Agent. Following-list entries carry `isPrivate` — Instagram doesn't say which are business accounts, but Business/Creator accounts can't be private
   - `instagram-handle.ts` — Handle rules (`normalizeHandle`, `isValidHandle`) and profile-link parsing: `parseHandleInput` accepts a handle, `@handle` or an `instagram.com/<handle>` link (with or without `https://`, `www.`/`m.`, a trailing slash or a query string like `?igsh=`), and rejects posts, reels, stories and other non-profile paths (`NON_PROFILE_PATHS`, Instagram's reserved routes). Imported by client pages and also bundled into the browser extension (`extension/src/profile-path.ts`), so it must stay client-safe, free of server-only imports. Changes affect both the app and the extension: `NON_PROFILE_PATHS` also decides where the extension's button shows. Type-check both (`npx tsc --noEmit` and `npm run ext:typecheck`); the extension only picks up changes when it's rebuilt
-  - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`
+  - `bio-parser.ts` — Claude (Sonnet) structured outputs (`output_config` JSON schema) for location extraction. Newer models reject forced `tool_choice`. With `ANTHROPIC_FEDERATION_RULE_ID` set it uses workload identity federation instead of `ANTHROPIC_API_KEY`: the SDK's `oidcFederationProvider` exchanges `getVercelOidcToken()` (`@vercel/oidc`: the request's `x-vercel-oidc-token` header on Vercel; locally a token minted with the Vercel CLI login for the linked project) for a short-lived token, which it caches and renews. The client is created on first use and passes `apiKey: null` and `authToken: null`, because those default to env vars that would win over `credentials`
   - `geocoding.ts` — Mapbox forward geocoding
   - `import-parser.ts` — Instagram data export JSON parser
   - `auth-options.ts` — NextAuth config (imported by route handler AND server helpers). Instagram OAuth only signs in already-linked accounts (no sign-up)
@@ -130,7 +130,7 @@ Client components get the signed-in user's ID from `useCurrentUserId()` (`src/ho
 
 ### Environment Variables
 - `NEXT_PUBLIC_*` — Client-accessible (only Mapbox token)
-- Everything else is server-only (Instagram tokens, Anthropic key, DB URL, NextAuth secret)
+- Everything else is server-only (Instagram tokens, Anthropic key or federation IDs, DB URL, NextAuth secret)
 - See `.env.example` for the full list
 - Exception: `TRAVELINK_URL` is for the extension build only. `extension/build.mjs` reads it from the shell, not `.env`, and bakes it into the (public) extension bundle
 
