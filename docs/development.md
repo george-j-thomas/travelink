@@ -100,7 +100,7 @@ is set; otherwise `ANTHROPIC_API_KEY` is.
      gets called
    - **Scope:** `workspace:developer`, the default (the access a workspace API key has)
    - **Service account:** create one, with any name (e.g. `travelink-parser`)
-3. The wizard ends with a curl example. Copy its four IDs into Vercel (Production) and `.env`:
+3. The wizard ends with a curl example. Copy its four IDs into Vercel (Production and Preview) and `.env`:
    `federation_rule_id` → `ANTHROPIC_FEDERATION_RULE_ID`, `organization_id` → `ANTHROPIC_ORGANIZATION_ID`,
    `service_account_id` → `ANTHROPIC_SERVICE_ACCOUNT_ID` and `workspace_id` → `ANTHROPIC_WORKSPACE_ID`. They're
    IDs, not secrets.
