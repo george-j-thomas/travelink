@@ -31,7 +31,8 @@ cp .env.example .env
 ```
 
 Required keys:
-- `ANTHROPIC_API_KEY` — from [console.anthropic.com](https://console.anthropic.com)
+- `ANTHROPIC_API_KEY` — from [console.anthropic.com](https://console.anthropic.com), or no key at all with
+  [workload identity federation](#claude-without-an-api-key-workload-identity-federation)
 - `NEXT_PUBLIC_MAPBOX_TOKEN` — from [account.mapbox.com](https://account.mapbox.com)
 - `NEXTAUTH_SECRET` — generate with `openssl rand -base64 32`
 - `ADMIN_EMAILS` — your email (comma-separate several). Admins can register without an invite and see the
@@ -79,6 +80,39 @@ Business Discovery is free. It allows roughly 200 calls per hour, and requires:
    `instagram_business_account.id`) in `.env.local` / Vercel, then redeploy. If the token ever stops working
    (password change, app removed, permissions revoked), the Artists page says so. Repeat steps 3 and 5.
 
+## Claude without an API key (workload identity federation)
+
+API keys expire and have to be replaced by hand. With workload identity federation, travel-ink proves who it is
+with the OIDC token Vercel gives each function, and the Anthropic SDK trades it for a short-lived access token,
+renewing it as needed. There's no key to store or rotate. Federation is used when `ANTHROPIC_FEDERATION_RULE_ID`
+is set; otherwise `ANTHROPIC_API_KEY` is.
+
+1. In Vercel, set the project's Settings → Security → **Secure backend access with OIDC federation** to Team. Below,
+   `<team>` is the team slug (as in `vercel.com/<team>`) and `<project>` the project name.
+2. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation)
+   and select **Connect workload** → **Custom OIDC** (needs the admin or owner role). Fill in:
+   - **Issuer URL:** `https://oidc.vercel.com/<team>`, with discovery for the keys
+   - **Maximum token lifetime:** `12` hours. Vercel's tokens last 2 hours in functions and 12 locally, and the
+     1-hour default rejects them
+   - **Subject:** `owner:<team>:project:<project>:environment:*` (any environment; end it with `production`
+     instead of `*` for production only)
+   - **Audience:** `https://vercel.com/<team>`. It's the `aud` value Vercel writes into its tokens, not a URL that
+     gets called
+   - **Scope:** `workspace:developer`, the default (the access a workspace API key has)
+   - **Service account:** create one, with any name (e.g. `travelink-parser`)
+3. The wizard ends with a curl example. Copy its four IDs into Vercel (Production) and `.env`:
+   `federation_rule_id` → `ANTHROPIC_FEDERATION_RULE_ID`, `organization_id` → `ANTHROPIC_ORGANIZATION_ID`,
+   `service_account_id` → `ANTHROPIC_SERVICE_ACCOUNT_ID` and `workspace_id` → `ANTHROPIC_WORKSPACE_ID`. They're
+   IDs, not secrets.
+4. Deploy and refresh an artist's bio to check it works. Then remove `ANTHROPIC_API_KEY` from Vercel and `.env`
+   and delete the key in the Console.
+
+Locally, `npm run dev` gets its token with your Vercel CLI login, so run `vercel login` and `vercel link` once. The
+token is cached for 12 hours and renewed when it expires. A failed exchange only says "Authentication failed"; the
+reason is in the Console's Workload identity page, under authentication history. "Failed to reach token endpoint"
+means the request never got there: some networks block `api.anthropic.com`, and Claude can't be reached from them
+with or without a key.
+
 ## Deploying to Vercel
 
 1. **Import the repo** at [vercel.com/new](https://vercel.com/new) (framework: Next.js — `vercel.json` sets the build command).
@@ -87,7 +121,8 @@ Business Discovery is free. It allows roughly 200 calls per hour, and requires:
 3. **Set environment variables** (Settings → Environment Variables):
    - `NEXTAUTH_SECRET` — `openssl rand -base64 32`
    - `NEXTAUTH_URL` — your production URL, e.g. `https://travelink.vercel.app`
-   - `ANTHROPIC_API_KEY`
+   - `ANTHROPIC_API_KEY`, or the federation IDs (see
+     [Claude without an API key](#claude-without-an-api-key-workload-identity-federation))
    - `NEXT_PUBLIC_MAPBOX_TOKEN` — don't add URL restrictions; server-side geocoding uses it too
    - `INSTAGRAM_APP_ACCESS_TOKEN` / `INSTAGRAM_APP_USER_ID` — to fetch bios (see above)
    - Optional: `INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET` (Instagram login)
