@@ -87,25 +87,31 @@ with the OIDC token Vercel gives each function, and the Anthropic SDK trades it 
 renewing it as needed. There's no key to store or rotate. Federation is used when `ANTHROPIC_FEDERATION_RULE_ID`
 is set; otherwise `ANTHROPIC_API_KEY` is.
 
-1. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation)
-   and select **Connect workload** → **Custom OIDC** (needs the admin or owner role):
-   - Issuer URL: `https://oidc.vercel.com/<team slug>` (Vercel project → Settings → Security → **Secure backend
-     access with OIDC federation**, Team mode), with discovery for the keys
-   - Maximum token lifetime (an issuer setting, in hours): `12`. It caps how long the Vercel tokens Anthropic
-     accepts may last. Vercel's last 2 hours in functions and 12 locally, so the 1-hour default rejects them. The
-     rule's own token lifetime (Anthropic's access token) can keep its default
-   - Rule: subject `owner:<team slug>:project:<project name>:environment:*` (any environment; end it with
-     `production` instead of `*` for production only), audience `https://vercel.com/<team slug>`, scope
-     `workspace:inference` (enough for the Messages API)
-2. Set `ANTHROPIC_FEDERATION_RULE_ID` (`fdrl_…`), `ANTHROPIC_SERVICE_ACCOUNT_ID` (`svac_…`) and
-   `ANTHROPIC_ORGANIZATION_ID` (a UUID) in Vercel and `.env`. Add `ANTHROPIC_WORKSPACE_ID` only if the rule covers
-   more than one workspace.
-3. Redeploy and refresh an artist's bio to check it works. Then remove `ANTHROPIC_API_KEY` from Vercel and `.env`
+1. In Vercel, set the project's Settings → Security → **Secure backend access with OIDC federation** to Team. Below,
+   `<team>` is the team slug (as in `vercel.com/<team>`) and `<project>` the project name.
+2. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation)
+   and select **Connect workload** → **Custom OIDC** (needs the admin or owner role). Fill in:
+   - **Issuer URL:** `https://oidc.vercel.com/<team>`, with discovery for the keys
+   - **Maximum token lifetime:** `12` hours. Vercel's tokens last 2 hours in functions and 12 locally, and the
+     1-hour default rejects them
+   - **Subject:** `owner:<team>:project:<project>:environment:*` (any environment; end it with `production`
+     instead of `*` for production only)
+   - **Audience:** `https://vercel.com/<team>`. It's the `aud` value Vercel writes into its tokens, not a URL that
+     gets called
+   - **Scope:** `workspace:developer`, the default (the access a workspace API key has)
+   - **Service account:** create one, with any name (e.g. `travelink-parser`)
+3. The wizard ends with a curl example. Copy its four IDs into Vercel (Production) and `.env`:
+   `federation_rule_id` → `ANTHROPIC_FEDERATION_RULE_ID`, `organization_id` → `ANTHROPIC_ORGANIZATION_ID`,
+   `service_account_id` → `ANTHROPIC_SERVICE_ACCOUNT_ID` and `workspace_id` → `ANTHROPIC_WORKSPACE_ID`. They're
+   IDs, not secrets.
+4. Deploy and refresh an artist's bio to check it works. Then remove `ANTHROPIC_API_KEY` from Vercel and `.env`
    and delete the key in the Console.
 
 Locally, `npm run dev` gets its token with your Vercel CLI login, so run `vercel login` and `vercel link` once. The
 token is cached for 12 hours and renewed when it expires. A failed exchange only says "Authentication failed"; the
-reason is in the Console's Workload identity page, under authentication history.
+reason is in the Console's Workload identity page, under authentication history. "Failed to reach token endpoint"
+means the request never got there: some networks block `api.anthropic.com`, and Claude can't be reached from them
+with or without a key.
 
 ## Deploying to Vercel
 
