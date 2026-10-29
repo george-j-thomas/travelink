@@ -55,6 +55,10 @@ each one is based and where they're guesting next.
   travel-ink users have added. If the artist isn't there, enter their Instagram handle or paste a link to their
   profile (in the Instagram app: open their profile and tap ⋯ → Copy profile URL). Connect your session cookie to
   search all of Instagram as you type, too
+- **Add from Instagram.** The travel-ink browser extension for Chrome, Brave and Edge puts an **Add @handle** button
+  on Instagram profiles. It opens travel-ink's Add page with the handle filled in, so you can see if the artist is
+  already on your list. Nothing is added until you confirm. The extension only reads the handle from the page's
+  address: it doesn't call Instagram or read your cookies. See [extension/README.md](extension/README.md)
 
 Bios load in the background while any travel-ink page is open, so you can keep browsing. The Artists page shows how
 many are left. If Instagram limits requests, the queue pauses and picks up again by itself. Nothing is lost.
@@ -104,5 +108,5 @@ npx prisma migrate dev
 npm run dev              # http://localhost:3000
 ```
 
-[docs/development.md](docs/development.md) covers the API keys, setting up Instagram Business Discovery and
-deploying to Vercel.
+[docs/development.md](docs/development.md) covers the API keys, setting up Instagram Business Discovery, deploying
+to Vercel and building the browser extension.

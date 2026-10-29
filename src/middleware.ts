@@ -9,8 +9,11 @@ export async function middleware(request: NextRequest) {
 
   const token = await getToken({ req: request })
   if (!token) {
+    // The login page sends the user back to this path (query string included) after
+    // signing in. Relative, since it only follows paths on its own origin
+    const { pathname, search } = request.nextUrl
     const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("callbackUrl", request.url)
+    loginUrl.searchParams.set("callbackUrl", `${pathname}${search}`)
     return NextResponse.redirect(loginUrl)
   }
 
