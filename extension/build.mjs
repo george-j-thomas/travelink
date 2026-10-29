@@ -5,7 +5,8 @@
 //   node extension/build.mjs           one-off build (npm run ext:build)
 //   node extension/build.mjs --watch   rebuild the scripts on change (npm run ext:watch)
 //
-// TRAVELINK_URL sets the travel-ink origin the button links to (default http://localhost:3000).
+// TRAVELINK_URL sets the travel-ink origin (default http://localhost:3000): what the button links
+// to, and the extension's only host permission, which the service worker calls travel-ink with.
 // Needs Node 20.9+ (sharp).
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
@@ -21,6 +22,7 @@ const TSCONFIG_PATH = path.join(EXTENSION_DIR, "tsconfig.json")
 // Output name in dist/ (".js" added) → source. Each script manifest.json references needs an entry.
 const ENTRY_POINTS = {
   content: path.join(EXTENSION_DIR, "src", "content.ts"),
+  background: path.join(EXTENSION_DIR, "src", "background.ts"),
 }
 
 const DEFAULT_TRAVELINK_URL = "http://localhost:3000"
@@ -79,11 +81,23 @@ async function writeIcons(icons) {
   log("icons", { source: "icons/icon.svg", svgSize: `${width}x${height}`, pngs: Object.values(icons) })
 }
 
+/**
+ * The manifest for dist/: manifest.json plus the host permission for travel-ink's origin, so the
+ * permission always matches the origin the scripts were built with.
+ */
+function buildManifest(source, origin) {
+  if (source.host_permissions || source.optional_host_permissions) {
+    throw new Error("Don't list host permissions in manifest.json: the build adds travel-ink's from TRAVELINK_URL")
+  }
+  return { ...source, host_permissions: [`${origin}/*`] }
+}
+
 /** Fails the build when manifest.json points at a file that isn't in dist/. */
 async function checkManifestFiles(manifest) {
   const files = [
     ...Object.values(manifest.icons ?? {}),
     ...(manifest.content_scripts ?? []).flatMap((script) => [...(script.js ?? []), ...(script.css ?? [])]),
+    ...(manifest.background?.service_worker ? [manifest.background.service_worker] : []),
   ]
   for (const file of files) {
     try {
@@ -109,10 +123,10 @@ async function main() {
   await rm(DIST_DIR, { recursive: true, force: true })
   await mkdir(DIST_DIR, { recursive: true })
 
-  const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"))
+  const manifest = buildManifest(JSON.parse(await readFile(MANIFEST_PATH, "utf8")), origin)
   await writeIcons(manifest.icons)
   await writeFile(path.join(DIST_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
-  log("manifest", { name: manifest.name, version: manifest.version })
+  log("manifest", { name: manifest.name, version: manifest.version, hostPermissions: manifest.host_permissions })
 
   const options = {
     entryPoints: ENTRY_POINTS,

@@ -135,8 +135,9 @@ suspiciously than a home connection. They are kept to a minimum: one paginated l
 ## Browser extension
 
 `extension/` is a browser extension for Chrome, Brave and Edge. On an Instagram profile it shows an **Add @handle**
-button that opens travel-ink's Add page with the handle filled in. [extension/README.md](../extension/README.md)
-explains how it works and how to zip it for the Chrome Web Store.
+button that adds the artist to your travel-ink list in place, or **On your list** if they're on it already. Its
+service worker calls travel-ink with your login cookie. [extension/README.md](../extension/README.md) explains how it
+works and how to zip it for the Chrome Web Store.
 
 ### Building and loading it
 
@@ -155,18 +156,22 @@ To load it:
 1. Run `npm run ext:build`.
 2. Open `chrome://extensions` (Brave: `brave://extensions`, Edge: `edge://extensions`) and turn on **Developer mode**.
 3. Click **Load unpacked** and pick `extension/dist/`, not `extension/`.
-4. Start the dev server (`npm run dev`), open an Instagram profile and click the button. It opens
-   `http://localhost:3000/artists/add?handle=<handle>` in a new tab. If you're signed out, you sign in first and come
-   back to it.
+4. Start the dev server (`npm run dev`), open an Instagram profile and click the button. It adds the artist to your
+   local list and turns into **Added to your list**. If you're signed out, it says **Sign in to travel-ink** and
+   opens `http://localhost:3000/artists/add?handle=<handle>`, where you sign in and come back to the handle.
+
+`.env.local`'s `DEV_AUTH_BYPASS=true` makes every request the dev user, the extension's included. Turn it off to try
+the signed-out and login-cookie behavior. The service worker's console opens from the **service worker** link on the
+extension's card.
 
 After a rebuild, click the extension's reload button on the extensions page, then reload the Instagram tab.
 `ext:watch` only rebuilds the scripts, so restart it after editing `manifest.json` or `icons/icon.svg`.
 
 ### `TRAVELINK_URL`
 
-The button links to the travel-ink origin in `TRAVELINK_URL`, which is fixed at build time. It defaults to
-`http://localhost:3000`, so a default build only works with the local dev server. If that runs on another port, set
-it, e.g. `TRAVELINK_URL=http://localhost:3001 npm run ext:build`.
+The extension talks to the travel-ink origin in `TRAVELINK_URL`, which is fixed at build time and is also its one
+host permission. It defaults to `http://localhost:3000`, so a default build only works with the local dev server. If
+that runs on another port, set it, e.g. `TRAVELINK_URL=http://localhost:3001 npm run ext:build`.
 
 For a release build, set it to your production URL, the same origin as `NEXTAUTH_URL`:
 
