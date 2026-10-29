@@ -91,8 +91,9 @@ is set; otherwise `ANTHROPIC_API_KEY` is.
    and select **Connect workload** → **Custom OIDC** (needs the admin or owner role):
    - Issuer URL: `https://oidc.vercel.com/<team slug>` (Vercel project → Settings → Security → **Secure backend
      access with OIDC federation**, Team mode), with discovery for the keys
-   - Maximum JWT lifetime (on the issuer): `43200` (12 hours). Vercel's tokens last 2 hours in functions and 12
-     locally, and the 1-hour default rejects them
+   - Maximum token lifetime (an issuer setting, in hours): `12`. It caps how long the Vercel tokens Anthropic
+     accepts may last. Vercel's last 2 hours in functions and 12 locally, so the 1-hour default rejects them. The
+     rule's own token lifetime (Anthropic's access token) can keep its default
    - Rule: subject `owner:<team slug>:project:<project name>:environment:*` (any environment; end it with
      `production` instead of `*` for production only), audience `https://vercel.com/<team slug>`, scope
      `workspace:inference` (enough for the Messages API)
