@@ -158,8 +158,8 @@ To load it:
 3. Click **Load unpacked** and pick `extension/dist/`, not `extension/`.
 4. Start the dev server (`npm run dev`), open an Instagram profile and click the button. It adds the artist to your
    local list and turns into **Added to your list**. If you're signed out, it says **Sign in to travel-ink**. Clicking it
-   opens `http://localhost:3000/artists/add?handle=<handle>`, which asks you to sign in. Once you have, the
-   artist is added, that tab shows the artist's page and the Instagram button says **Added to your list**.
+   opens `http://localhost:3000/artists/add?handle=<handle>&adding=1`, which asks you to sign in. Once you have, the
+   tab shows the add's progress, then the artist's page, and the Instagram button says **Added to your list**.
 
 `.env.local`'s `DEV_AUTH_BYPASS=true` makes every request the dev user, the extension's included. Turn it off to try
 the signed-out and login-cookie behavior. The service worker's console opens from the **service worker** link on the

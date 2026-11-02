@@ -4,7 +4,7 @@
 // has signed in. It never calls Instagram.
 import { isValidHandle, normalizeHandle } from "../../src/lib/instagram-handle"
 import { TRAVELINK_ORIGIN } from "./config"
-import { addPageUrl, artistPageUrl } from "./links"
+import { addAfterSignInUrl, addPageUrl, artistPageUrl } from "./links"
 import type { ExtensionPush, ExtensionRequest, ExtensionResponse } from "./messages"
 
 const INSTAGRAM_ORIGIN = "https://www.instagram.com"
@@ -123,11 +123,12 @@ async function respond(request: ExtensionRequest, tab: chrome.tabs.Tab | undefin
 // ---------------------------------------------------------------------------
 //
 // A click on "Add" while signed out opens the Add page in a new tab (the site sends the user
-// through its login page first). That tab is remembered here with the handle. Once it reaches a
-// page only signed-in users can open, the user is signed in, so the add the click asked for goes
-// ahead: the artist's page replaces the one the user landed on, and the Instagram tab they
-// clicked in shows the result. If the add still can't happen (e.g. Brave doesn't send the
-// cookie), the Add page stays open with the handle filled in, as before.
+// through its login page first), marked so that it shows the add's progress rather than the form.
+// That tab is remembered here with the handle. Once it reaches a page only signed-in users can
+// open, the user is signed in, so the add the click asked for goes ahead: the artist's page
+// replaces the one the user landed on, and the Instagram tab they clicked in shows the result. If
+// the add still can't happen (e.g. Brave doesn't send the cookie), the Add page's form replaces
+// it instead, with the handle filled in.
 //
 // Remembered in chrome.storage.session (memory only, cleared when the browser closes), since
 // Chrome stops an idle service worker within 30 seconds, often before the user has signed in.
@@ -181,7 +182,7 @@ async function openSignIn(handle: string, sourceTab: chrome.tabs.Tab | undefined
       return
     }
     const tab = await chrome.tabs.create({
-      url: addPageUrl(handle),
+      url: addAfterSignInUrl(handle),
       ...(sourceTab?.index !== undefined ? { index: sourceTab.index + 1 } : {}),
       ...(sourceTab?.id !== undefined ? { openerTabId: sourceTab.id } : {}),
     })
@@ -232,12 +233,13 @@ async function finishAddAfterSignIn(tabId: number, landedOn: string): Promise<vo
   const response = await run("add", handle)
   console.debug("[travel-ink]", { event: "add-after-sign-in.done", handle, result: response.result })
   tell(sourceTabId, { type: "add-finished", handle, response })
-  if (response.result !== "added") return
-  // Show the artist, unless the user has already moved on from the page they landed on.
+  // Show the artist, or the form to add them by hand if that didn't work, unless the user has
+  // already moved on from the page they landed on.
   const tab = await chrome.tabs.get(tabId).catch(() => null)
   if (signedInPath(tab?.url) !== landedOn) return
+  const url = response.result === "added" ? artistPageUrl(response.artistId) : addPageUrl(handle)
   await chrome.tabs
-    .update(tabId, { url: artistPageUrl(response.artistId) })
+    .update(tabId, { url })
     .catch((err: unknown) => console.warn("[travel-ink]", { event: "tabs.update.failed", error: String(err) }))
 }
 

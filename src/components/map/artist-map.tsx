@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { Map, Source, Layer, Popup } from "react-map-gl/mapbox"
+import { Map, Source, Layer, Popup, NavigationControl } from "react-map-gl/mapbox"
 import type { MapRef } from "react-map-gl/mapbox"
 import type { MapMouseEvent, GeoJSONSource } from "mapbox-gl"
 import Link from "next/link"
@@ -597,6 +597,10 @@ export const ArtistMap = forwardRef<MapRef, ArtistMapProps>(
           {/* @ts-expect-error – mapbox expression types are overly strict */}
           <Layer {...unclusteredPointLayer} />
         </Source>
+
+        {/* Compass: shows which way is north and, when clicked, turns the map back north-up
+            and flat (a two-finger drag or right-drag can rotate or tilt it) */}
+        <NavigationControl position="top-right" showZoom={false} visualizePitch />
 
         {/* ── Popup ─────────────────────────────────────────────── */}
         {selected && (
