@@ -1,6 +1,6 @@
 # travel-ink browser extension
 
-v1 adds a floating **Add @handle** button to Instagram profile pages in desktop Chrome, Brave and Edge. Clicking it adds the artist to your travel-ink list without leaving Instagram, and profiles already on your list show **On your list** instead. The click is the confirmation: the extension never adds anything on its own.
+v1 adds a floating **Add @handle** button to Instagram profile pages in desktop Chrome, Brave and Edge. Clicking it adds the artist to your travel-ink list without leaving Instagram, and profiles already on your list show **On your list** instead. The click is the confirmation: the extension never adds anything on its own. If you're signed out, the click opens travel-ink to sign in, and the artist is added as soon as you have.
 
 ## What it does
 
@@ -9,20 +9,21 @@ v1 adds a floating **Add @handle** button to Instagram profile pages in desktop 
 - Instagram is a single-page app, so the script checks the path every 500 ms, and on back/forward, and updates the button when the path changes. If Instagram's re-rendering removes the button while you stay on the same profile, it comes back within about 0.5 s.
 - It makes no Instagram API calls, reads no cookies and doesn't scrape the page: it only uses the URL.
 - Only the service worker (`src/background.ts`) talks to travel-ink. Content scripts can't: their cross-origin requests are blocked even with a host permission. The content script sends it `{ type: "check" | "add", handle }` with `chrome.runtime.sendMessage`. The service worker only answers its own content script on `https://www.instagram.com` (it checks `sender.id` and `sender.origin`), checks the handle again with `isValidHandle`, and builds the travel-ink URLs itself.
-- Its only access is the content script and one host permission, for the travel-ink origin it was built with. No `permissions` (not even `cookies` or `storage`), no popup.
+- Its only access is the content script, one host permission, for the travel-ink origin it was built with, and the `storage` permission (no install warning) for `chrome.storage.session`, which remembers an add waiting for you to sign in. No `cookies` or `tabs` permission, no popup.
 
 ## Talking to travel-ink
 
 - **Signing in:** the service worker's requests use `credentials: "include"`. With a host permission for travel-ink, Chrome treats them as same-site, so they carry the travel-ink login cookie (NextAuth, `SameSite=Lax`) and the API's usual `requireSession()` works unchanged. Where third-party cookies are blocked (Brave by default), the cookie isn't sent and the button always says **Sign in to travel-ink**. A "Connect extension" token for those browsers isn't built yet.
 - **On your list:** `GET /api/artists/handles` returns the handles on your list. The service worker fetches the whole list and matches profiles itself, so travel-ink never learns which Instagram profiles you open. It keeps the list for 30 s, adds to it after each add, and drops it on a 401. Chrome stops idle service workers, and the list goes with it.
 - **Adding:** `POST /api/artists` with `{ handle }` only, since the extension doesn't read the page. Like the Add page, it fetches the bio straight away (Business Discovery, Claude, geocoding, photo), so an add can take several seconds; the service worker waits up to 60 s. If Instagram is throttling, the artist stays pending and the bio arrives the next time you open travel-ink, since the bio queue only runs in a travel-ink tab.
-- **Signed out (401):** the button becomes **Sign in to travel-ink**, a link to the Add page (`/artists/add?handle=…`), which signs you in and comes back to the handle. If you click **Add** and turn out to be signed out, the service worker opens that page in a new tab next to Instagram.
+- **Signed out (401):** the button becomes **Sign in to travel-ink**. Clicking it (or **Add**, if you turn out to be signed out) is still an add: the service worker opens the Add page (`/artists/add?handle=…`) in a new tab next to Instagram, which takes you through travel-ink's login page first, and the button says the artist is added once you've signed in there.
+- **Adding after signing in:** the service worker remembers that tab and the handle in `chrome.storage.session` (Chrome stops an idle service worker within 30 s, often before you've signed in; session storage is cleared when the browser closes). When the tab reaches a page only signed-in users can open (`/artists…`, `/map…`, `/admin…`, the pages `src/middleware.ts` protects), it takes the handle off the list (so it's added once) and adds it. The tab then goes to the artist's page, unless you've already moved on from the page you landed on, and the Instagram tab you clicked in shows the result (`chrome.tabs.sendMessage`: `add-started`, then `add-finished`). It only ever acts on tabs it opened itself, never on a travel-ink link opened any other way, and forgets a tab when it's closed or after 30 minutes. If the add still can't happen (e.g. Brave doesn't send the cookie), the Add page stays open with the handle filled in.
 - **Errors:** if travel-ink can't be reached or fails, the button says **Couldn't add. Try again** and keeps the reason in its tooltip. A 400's message (e.g. an invalid handle) is shown as is. If the service worker can't be reached at all (the extension was updated under an open tab), the button falls back to v0's link to the Add page.
 
 ## The button
 
 - It sits at the bottom right, raised above Instagram's floating Messages pill, so it stays clear of the left nav and the profile header. When Instagram mirrors its layout for a right-to-left language, it moves to the bottom left.
-- It shows the travel-ink badge and wordmark, the action and a minimize button. Minimizing shrinks it to the badge for the rest of the page session: it stays minimized on other profiles until the page reloads. The badge is still the control, and hovering or focusing it shows what it does. Windows narrower than 600px always get the badge alone.
+- It shows the travel-ink badge and wordmark, the action and a minimize button. Minimizing shrinks it to the badge: it stays minimized on other profiles until you click the badge, which expands it again (it doesn't add or open anything while minimized), or the page reloads. Hovering or focusing the badge shows the button's state. Windows narrower than 600px always get the badge alone, and there the badge is the control.
 - States (`ButtonState` in `src/button.ts`):
 
   | State | Shows | Control |
@@ -31,7 +32,7 @@ v1 adds a floating **Add @handle** button to Instagram profile pages in desktop 
   | `adding` | Adding @handle… | the same button, `aria-busy`; a second click does nothing |
   | `added` | Added to your list / Already on your list, plus any warning from travel-ink (in amber) | link to the artist's travel-ink page |
   | `on-list` | On your list (check mark badge) | link to the artist's travel-ink page |
-  | `sign-in` | Sign in to travel-ink | link to the Add page |
+  | `sign-in` | Sign in to travel-ink; after a click, a note that the artist is added once you've signed in | button: opens travel-ink to sign in, then adds |
   | `failed` | Couldn't add. Try again | button: adds again |
   | `add-link` | Add @handle | v0's link to the Add page (no service worker) |
 
@@ -44,7 +45,7 @@ v1 adds a floating **Add @handle** button to Instagram profile pages in desktop 
 
 ## On travel-ink
 
-When the button links to the Add page (signed out, or no service worker), the Add page reads `?handle=` once and removes it from the address bar. It fills in and focuses the field and shows the usual suggestions. Only travel-ink's own directory is searched, because the new tab has no Instagram cookie. Nothing is added until you click a suggestion or press Enter.
+When the extension opens the Add page (signed out, or v0's link when there's no service worker), the Add page reads `?handle=` once and removes it from the address bar. It fills in and focuses the field and shows the usual suggestions. Only travel-ink's own directory is searched, because the new tab has no Instagram cookie. The page itself never adds anything until you click a suggestion or press Enter; after a signed-out click, the service worker does the add (above).
 
 If you're signed out, you sign in first and come back to the Add page. One gap: if travel-ink refuses an Instagram sign-in, the login page loses the way back, so signing in with a password after that goes to the map.
 
@@ -129,4 +130,4 @@ Before the first upload:
 - To add a script, add its source to `ENTRY_POINTS` in `build.mjs`, reference the built `.js` in `manifest.json`, and list that reference in `checkManifestFiles` (it already covers content scripts and the service worker), so the build fails if the file is missing.
 - Scripts get the travel-ink origin from `TRAVELINK_ORIGIN` in `src/config.ts`. The host permission comes from the same validated origin in `build.mjs` (`buildManifest`), never from `manifest.json`.
 - Never let the content script make the service worker request an arbitrary URL: messages carry a handle, and the service worker builds the URL.
-- Not built yet: a "Connect extension" token for browsers that block third-party cookies (Brave by default). travel-ink would issue a long random token per user and store only its hash; the extension would keep it in `chrome.storage.local` (which needs the `storage` permission) and send it as a bearer token; only the extension's routes would accept it, still rejecting deleted or disabled users like `requireSession()`.
+- Not built yet: a "Connect extension" token for browsers that block third-party cookies (Brave by default). travel-ink would issue a long random token per user and store only its hash; the extension would keep it in `chrome.storage.local` and send it as a bearer token; only the extension's routes would accept it, still rejecting deleted or disabled users like `requireSession()`.

@@ -1,10 +1,11 @@
 // Service worker: the only part of the extension that calls travel-ink. It answers the content
 // script's "check" and "add" messages with the user's travel-ink session (the host permission for
-// TRAVELINK_ORIGIN makes Chrome send its cookies). It never calls Instagram.
+// TRAVELINK_ORIGIN makes Chrome send its cookies), and finishes an add once a signed-out user
+// has signed in. It never calls Instagram.
 import { isValidHandle, normalizeHandle } from "../../src/lib/instagram-handle"
 import { TRAVELINK_ORIGIN } from "./config"
-import { addPageUrl } from "./links"
-import type { ExtensionRequest, ExtensionResponse } from "./messages"
+import { addPageUrl, artistPageUrl } from "./links"
+import type { ExtensionPush, ExtensionRequest, ExtensionResponse } from "./messages"
 
 const INSTAGRAM_ORIGIN = "https://www.instagram.com"
 const CHECK_TIMEOUT_MS = 10_000
@@ -95,29 +96,167 @@ async function add(handle: string): Promise<ExtensionResponse> {
   return { result: "added", artistId, existing: body.status === "existing", warnings }
 }
 
-async function respond(request: ExtensionRequest, tab: chrome.tabs.Tab | undefined): Promise<ExtensionResponse> {
-  const handle = normalizeHandle(request.handle)
-  if (!isValidHandle(handle)) return { result: "error", message: "That isn't a valid Instagram handle." }
+/** Runs a check or an add. A 401 comes back as "signed-out" (and forgets the cached list). */
+async function run(type: ExtensionRequest["type"], handle: string): Promise<ExtensionResponse> {
   try {
-    return request.type === "check" ? await check(handle) : await add(handle)
+    return type === "check" ? await check(handle) : await add(handle)
   } catch (err) {
     if (err instanceof SignedOutError) {
       listCache = null
-      // After a click, send the user to sign in; the Add page brings them back to this handle.
-      if (request.type === "add") {
-        await chrome.tabs
-          .create({
-            url: addPageUrl(handle),
-            ...(tab?.index !== undefined ? { index: tab.index + 1 } : {}),
-            ...(tab?.id !== undefined ? { openerTabId: tab.id } : {}),
-          })
-          .catch((tabError: unknown) => console.warn("[travel-ink]", { event: "tabs.create.failed", error: String(tabError) }))
-      }
       return { result: "signed-out" }
     }
     return { result: "error", message: err instanceof Error ? err.message : FAILED }
   }
 }
+
+async function respond(request: ExtensionRequest, tab: chrome.tabs.Tab | undefined): Promise<ExtensionResponse> {
+  const handle = normalizeHandle(request.handle)
+  if (!isValidHandle(handle)) return { result: "error", message: "That isn't a valid Instagram handle." }
+  const response = await run(request.type, handle)
+  // After a click, send the user to sign in. The add finishes once they have (below).
+  if (request.type === "add" && response.result === "signed-out") await openSignIn(handle, tab)
+  return response
+}
+
+// ---------------------------------------------------------------------------
+// Finishing an add after the user signs in
+// ---------------------------------------------------------------------------
+//
+// A click on "Add" while signed out opens the Add page in a new tab (the site sends the user
+// through its login page first). That tab is remembered here with the handle. Once it reaches a
+// page only signed-in users can open, the user is signed in, so the add the click asked for goes
+// ahead: the artist's page replaces the one the user landed on, and the Instagram tab they
+// clicked in shows the result. If the add still can't happen (e.g. Brave doesn't send the
+// cookie), the Add page stays open with the handle filled in, as before.
+//
+// Remembered in chrome.storage.session (memory only, cleared when the browser closes), since
+// Chrome stops an idle service worker within 30 seconds, often before the user has signed in.
+// Only travel-ink tabs this service worker opened, for at most PENDING_TTL_MS, and each one once.
+
+const PENDING_KEY = "pendingSignIns"
+const PENDING_TTL_MS = 30 * 60_000
+// The pages travel-ink's middleware keeps signed-out users away from (src/middleware.ts).
+const SIGNED_IN_PATHS = ["/artists", "/map", "/admin"]
+
+interface PendingSignIn {
+  handle: string
+  /** The Instagram tab the user clicked in, told about the add. */
+  sourceTabId: number | null
+  createdAt: number
+}
+/** By the travel-ink tab's ID. */
+type PendingSignIns = Record<string, PendingSignIn>
+
+async function loadPending(): Promise<PendingSignIns> {
+  const stored = (await chrome.storage.session.get(PENDING_KEY))[PENDING_KEY] as PendingSignIns | undefined
+  const now = Date.now()
+  return Object.fromEntries(Object.entries(stored ?? {}).filter(([, pending]) => now - pending.createdAt < PENDING_TTL_MS))
+}
+
+// Changes run one at a time, so two of them can't both read the old value (and a tab's add can't
+// be taken twice).
+let pendingChanges: Promise<unknown> = Promise.resolve()
+
+function changePending<T>(change: (all: PendingSignIns) => T): Promise<T> {
+  const result = pendingChanges.then(async () => {
+    const all = await loadPending()
+    const value = change(all)
+    await chrome.storage.session.set({ [PENDING_KEY]: all })
+    return value
+  })
+  pendingChanges = result.catch(() => undefined)
+  return result
+}
+
+async function openSignIn(handle: string, sourceTab: chrome.tabs.Tab | undefined): Promise<void> {
+  try {
+    // Clicked again: bring back the tab that's already open for this handle rather than opening
+    // (and later adding from) another one.
+    for (const [tabId, pending] of Object.entries(await loadPending())) {
+      if (pending.handle !== handle) continue
+      const open = await chrome.tabs.get(Number(tabId)).catch(() => null)
+      if (!open?.id) continue
+      await chrome.tabs.update(open.id, { active: true })
+      if (open.windowId !== undefined) await chrome.windows.update(open.windowId, { focused: true }).catch(() => undefined)
+      return
+    }
+    const tab = await chrome.tabs.create({
+      url: addPageUrl(handle),
+      ...(sourceTab?.index !== undefined ? { index: sourceTab.index + 1 } : {}),
+      ...(sourceTab?.id !== undefined ? { openerTabId: sourceTab.id } : {}),
+    })
+    const tabId = tab.id
+    if (tabId === undefined) return
+    await changePending((all) => {
+      all[tabId] = { handle, sourceTabId: sourceTab?.id ?? null, createdAt: Date.now() }
+    })
+  } catch (err) {
+    console.warn("[travel-ink]", { event: "sign-in.open.failed", error: String(err) })
+  }
+}
+
+/** The path of `url` when it's a travel-ink page only signed-in users can open, else null. */
+function signedInPath(url: string | undefined): string | null {
+  if (!url) return null
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (parsed.origin !== TRAVELINK_ORIGIN) return null
+  const { pathname } = parsed
+  return SIGNED_IN_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ? pathname : null
+}
+
+function tell(tabId: number | null, push: ExtensionPush): void {
+  if (tabId === null) return
+  // The tab may have been closed or reloaded since; then there's no one to tell.
+  chrome.tabs.sendMessage(tabId, push).catch(() => undefined)
+}
+
+async function finishAddAfterSignIn(tabId: number, landedOn: string): Promise<void> {
+  if (!(await loadPending())[tabId]) return
+  const pending = await changePending((all) => {
+    const taken = all[tabId] ?? null
+    // One add per handle, even if other tabs were somehow opened for it too.
+    for (const [id, other] of Object.entries(all)) {
+      if (id === String(tabId) || (taken && other.handle === taken.handle)) delete all[id]
+    }
+    return taken
+  })
+  if (!pending) return
+  const { handle, sourceTabId } = pending
+  console.debug("[travel-ink]", { event: "add-after-sign-in.start", handle })
+  tell(sourceTabId, { type: "add-started", handle })
+  const response = await run("add", handle)
+  console.debug("[travel-ink]", { event: "add-after-sign-in.done", handle, result: response.result })
+  tell(sourceTabId, { type: "add-finished", handle, response })
+  if (response.result !== "added") return
+  // Show the artist, unless the user has already moved on from the page they landed on.
+  const tab = await chrome.tabs.get(tabId).catch(() => null)
+  if (signedInPath(tab?.url) !== landedOn) return
+  await chrome.tabs
+    .update(tabId, { url: artistPageUrl(response.artistId) })
+    .catch((err: unknown) => console.warn("[travel-ink]", { event: "tabs.update.failed", error: String(err) }))
+}
+
+// Fires for every tab, but tab.url is only filled in for travel-ink's origin (the host
+// permission); other tabs stop at the first check.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url === undefined && changeInfo.status !== "complete") return
+  const path = signedInPath(tab.url)
+  if (path) void finishAddAfterSignIn(tabId, path)
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void loadPending().then((all) => {
+    if (!all[tabId]) return
+    void changePending((latest) => {
+      delete latest[tabId]
+    })
+  })
+})
 
 function isExtensionRequest(message: unknown): message is ExtensionRequest {
   const { type, handle } = (message ?? {}) as { type?: unknown; handle?: unknown }

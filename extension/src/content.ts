@@ -5,7 +5,7 @@
 import { createAddButton, type ButtonState } from "./button"
 import { TRAVELINK_ORIGIN } from "./config"
 import { addPageUrl, artistPageUrl } from "./links"
-import type { ExtensionRequest, ExtensionResponse } from "./messages"
+import type { ExtensionPush, ExtensionRequest, ExtensionResponse } from "./messages"
 import { profileHandleFromPath } from "./profile-path"
 
 // Instagram is a single-page app: it navigates with history.pushState, which fires no event a
@@ -21,6 +21,11 @@ async function ask(request: ExtensionRequest): Promise<ExtensionResponse | null>
     console.debug("[travel-ink]", { event: "message.failed", type: request.type, error: String(err) })
     return null
   }
+}
+
+function isPush(message: unknown): message is ExtensionPush {
+  const { type, handle } = (message ?? {}) as { type?: unknown; handle?: unknown }
+  return (type === "add-started" || type === "add-finished") && typeof handle === "string"
 }
 
 function start(): void {
@@ -59,7 +64,8 @@ function start(): void {
         setState(forHandle, { kind: "add" })
         break
       case "signed-out":
-        setState(forHandle, { kind: "sign-in", href: addPageUrl(forHandle) })
+        // Keeps "Finish signing in…" if the user already clicked.
+        if (stateOf(forHandle).kind !== "sign-in") setState(forHandle, { kind: "sign-in", opened: false })
         break
       case "error":
         // Keep what's showing. If travel-ink is down, adding says so.
@@ -68,11 +74,14 @@ function start(): void {
     }
   }
 
-  const add = async (forHandle: string): Promise<void> => {
-    if (stateOf(forHandle).kind === "adding") return
+  /** Shows "adding". From here on, a check that was already running can't change the state. */
+  const startAdd = (forHandle: string): void => {
     addsStarted.set(forHandle, (addsStarted.get(forHandle) ?? 0) + 1)
     setState(forHandle, { kind: "adding" })
-    const response = await ask({ type: "add", handle: forHandle })
+  }
+
+  /** Shows how an add went: the user's own click, or the one finished after signing in. */
+  const finishAdd = (forHandle: string, response: ExtensionResponse | null, afterSignIn: boolean): void => {
     if (!response) {
       setState(forHandle, { kind: "add-link", href: addPageUrl(forHandle) })
       return
@@ -90,8 +99,9 @@ function start(): void {
         setState(forHandle, { kind: "on-list", href: artistPageUrl(response.artistId) })
         break
       case "signed-out":
-        // The service worker opened the Add page, where the user signs in and comes back to it.
-        setState(forHandle, { kind: "sign-in", href: addPageUrl(forHandle) })
+        // After a click, the service worker opened the Add page to sign in, and adds the artist
+        // once the user has. Still signed out after that: the Add page is open with the handle.
+        setState(forHandle, { kind: "sign-in", opened: !afterSignIn })
         break
       case "not-on-list":
       case "error":
@@ -102,6 +112,20 @@ function start(): void {
         break
     }
   }
+
+  const add = async (forHandle: string): Promise<void> => {
+    if (stateOf(forHandle).kind === "adding") return
+    startAdd(forHandle)
+    finishAdd(forHandle, await ask({ type: "add", handle: forHandle }), false)
+  }
+
+  // The service worker, finishing an add after the user signed in on travel-ink.
+  chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+    // Only our service worker (messages from tabs, i.e. other content scripts, carry sender.tab).
+    if (sender.id !== chrome.runtime.id || sender.tab || !isPush(message)) return
+    if (message.type === "add-started") startAdd(message.handle)
+    else finishAdd(message.handle, message.response, true)
+  })
 
   const button = createAddButton({ onAdd: (forHandle) => void add(forHandle) })
 

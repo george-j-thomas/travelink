@@ -126,7 +126,12 @@ async function main() {
   const manifest = buildManifest(JSON.parse(await readFile(MANIFEST_PATH, "utf8")), origin)
   await writeIcons(manifest.icons)
   await writeFile(path.join(DIST_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
-  log("manifest", { name: manifest.name, version: manifest.version, hostPermissions: manifest.host_permissions })
+  log("manifest", {
+    name: manifest.name,
+    version: manifest.version,
+    permissions: manifest.permissions ?? [],
+    hostPermissions: manifest.host_permissions,
+  })
 
   const options = {
     entryPoints: ENTRY_POINTS,

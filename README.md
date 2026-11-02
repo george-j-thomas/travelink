@@ -57,7 +57,7 @@ each one is based and where they're guesting next.
   search all of Instagram as you type, too
 - **Add from Instagram.** The travel-ink browser extension for Chrome, Brave and Edge puts an **Add @handle** button
   on Instagram profiles. Click it to add the artist to your list without leaving Instagram; artists already on your
-  list show **On your list**. It uses your travel-ink sign-in, and sends you to sign in first if you aren't. The
+  list show **On your list**. It uses your travel-ink sign-in; if you aren't signed in, it opens travel-ink to sign in and adds the artist once you have. The
   extension only reads the handle from the page's address: it doesn't call Instagram or read your Instagram cookies.
   See [extension/README.md](extension/README.md)
 

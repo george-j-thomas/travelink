@@ -13,6 +13,13 @@ export type ExtensionResponse =
   | { result: "not-on-list" }
   /** Answers "add": `existing` when it was already on the list. Warnings come from travel-ink. */
   | { result: "added"; artistId: string; existing: boolean; warnings: string[] }
-  /** No travel-ink session. After an "add", the service worker has opened the Add page. */
+  /** No travel-ink session. After an "add", the service worker has opened the Add page, and adds
+   * the artist once the user has signed in there (see ExtensionPush). */
   | { result: "signed-out" }
   | { result: "error"; message: string }
+
+/** From the service worker to the Instagram tab where a signed-out user clicked "Add", for the
+ * add it does once they've signed in on travel-ink. */
+export type ExtensionPush =
+  | { type: "add-started"; handle: string }
+  | { type: "add-finished"; handle: string; response: ExtensionResponse }

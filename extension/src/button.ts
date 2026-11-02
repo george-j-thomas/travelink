@@ -25,15 +25,17 @@
 // float over modals too.
 //
 // Sizes. Expanded (default): brand badge, the travel-ink wordmark, the action ("Add @handle"…),
-// and a minimize button. Minimized (for the rest of the page session, i.e. until reload): the
-// badge alone. The badge is still the control, with a tooltip on hover and keyboard focus.
+// and a minimize button. Minimized (until the page reloads, or the badge is clicked): the badge
+// alone, with a tooltip on hover and keyboard focus. Clicking it expands the button again rather
+// than acting, so a minimized button never adds anything.
 //
-// States (ButtonState). "add" and "failed" are a <button> that adds in place (the content script
-// passes the click to the service worker; the click is the user's confirmation), and "adding" is
-// that button while the request runs. "added", "on-list", "sign-in" and "add-link" are links that
-// open travel-ink in a new tab: the artist's page, or the Add page (which signs the user in
-// first). "added" can carry a warning from travel-ink (e.g. the bio isn't public), shown under the
-// action. A visually hidden live region announces the add's progress to screen readers.
+// States (ButtonState). "add", "failed" and "sign-in" are a <button> that adds in place (the
+// content script passes the click to the service worker; the click is the user's confirmation),
+// and "adding" is that button while the request runs. Signed out, the service worker opens
+// travel-ink to sign in and adds the artist once the user has. "added", "on-list" and "add-link"
+// are links that open travel-ink in a new tab: the artist's page, or v0's Add page. "added" can
+// carry a warning from travel-ink (e.g. the bio isn't public), shown under the action. A visually
+// hidden live region announces the add's progress to screen readers.
 
 export type ButtonState =
   /** Not on the user's list (or not checked yet): clicking adds the artist in place. */
@@ -44,8 +46,11 @@ export type ButtonState =
   | { kind: "added"; href: string; existing: boolean; warning: string | null }
   /** On the user's list: a link to the artist's travel-ink page. */
   | { kind: "on-list"; href: string }
-  /** Signed out of travel-ink: a link to the Add page, which signs the user in first. */
-  | { kind: "sign-in"; href: string }
+  /**
+   * Signed out of travel-ink: clicking adds, which opens travel-ink to sign in and adds the artist
+   * once the user has. `opened` once that tab is open.
+   */
+  | { kind: "sign-in"; opened: boolean }
   /** The service worker can't be reached (e.g. the extension was updated): v0's Add page link. */
   | { kind: "add-link"; href: string }
   /** The add failed with `message`; clicking tries again. */
@@ -63,7 +68,7 @@ export interface AddButton {
 }
 
 export interface AddButtonOptions {
-  /** A real click on "add" or "failed": add `handle` (without the @). */
+  /** A real click on "add", "failed" or "sign-in": add `handle` (without the @). */
   onAdd(handle: string): void
 }
 
@@ -256,6 +261,11 @@ button.add {
   display: none;
 }
 
+/* Not a warning: where to finish signing in */
+.root[data-state="sign-in"] .note {
+  color: var(--muted-foreground);
+}
+
 .divider {
   flex: none;
   width: 1px;
@@ -329,7 +339,8 @@ button.add {
 }
 
 /* A warning can be long: let it wrap rather than cut it off */
-.root[data-state="added"] .tip {
+.root[data-state="added"] .tip,
+.root[data-state="sign-in"] .tip {
   width: max-content;
   max-width: min(20em, calc(100vw - 40px));
   white-space: normal;
@@ -470,17 +481,52 @@ export function createAddButton(options: AddButtonOptions): AddButton {
   let shownHandle: string | null = null
   let shownState: ButtonState | null = null
 
-  minimize.addEventListener("click", () => {
-    // Stays minimized across profiles until the page reloads.
-    root.setAttribute("data-minimized", "")
-    // The button is about to disappear; don't drop keyboard focus on <body>.
+  let minimized = false
+  // The control's name and tooltip for the current state (minimizing changes the name).
+  let controlLabel = ""
+  let tipLabel = ""
+
+  function applyLabels(): void {
+    if (minimized) {
+      control.setAttribute("aria-label", `Expand travel-ink. ${tipLabel}`)
+      control.setAttribute("aria-expanded", "false")
+    } else {
+      control.setAttribute("aria-label", controlLabel)
+      control.removeAttribute("aria-expanded")
+    }
+    tip.textContent = minimized ? `${tipLabel.replace(/[.…]+$/, "")}. Click to expand` : tipLabel
+  }
+
+  function setMinimized(next: boolean): void {
+    minimized = next
+    root.toggleAttribute("data-minimized", next)
+    applyLabels()
+    // The minimize button disappears (or the control changes role): keep keyboard focus on the
+    // badge rather than dropping it on <body>.
     control.focus()
-  })
+  }
+
+  // Stays minimized across profiles until the page reloads.
+  minimize.addEventListener("click", () => setMinimized(true))
+
+  // Minimized, a click on the badge expands the button. Capture phase, so it never reaches the
+  // control: links don't open and nothing is added.
+  root.addEventListener(
+    "click",
+    (event) => {
+      if (!minimized || !(event.target instanceof Node) || !control.contains(event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      setMinimized(false)
+    },
+    true,
+  )
 
   action.addEventListener("click", (event) => {
     // Only the user's own clicks, not ones a page script dispatches.
     if (!event.isTrusted || !shownHandle) return
-    if (shownState?.kind === "add" || shownState?.kind === "failed") options.onAdd(shownHandle)
+    const kind = shownState?.kind
+    if (kind === "add" || kind === "failed" || kind === "sign-in") options.onAdd(shownHandle)
   })
 
   function switchControl(next: HTMLAnchorElement | HTMLButtonElement): void {
@@ -490,6 +536,7 @@ export function createAddButton(options: AddButtonOptions): AddButton {
     control.replaceWith(next)
     control = next
     if (hadFocus) next.focus()
+    applyLabels()
   }
 
   function render(name: string, state: ButtonState): void {
@@ -530,7 +577,13 @@ export function createAddButton(options: AddButtonOptions): AddButton {
       case "sign-in":
         actionText.textContent = "Sign in to travel-ink"
         label = `Sign in to travel-ink to add ${at} (opens in a new tab)`
-        tipText = label
+        tipText = `Sign in to travel-ink to add ${at}`
+        if (state.opened) {
+          noteText = `${at} is added once you've signed in on the travel-ink tab.`
+          label = `${label}. ${noteText}`
+          tipText = noteText
+          announcement = `Sign in on the travel-ink tab to add ${at}`
+        }
         break
       case "add-link":
         actionText.textContent = `Add ${at}`
@@ -558,10 +611,11 @@ export function createAddButton(options: AddButtonOptions): AddButton {
     }
     if (state.kind === "failed") action.setAttribute("title", state.message)
     else action.removeAttribute("title")
-    control.setAttribute("aria-label", label)
+    controlLabel = label
+    tipLabel = tipText
+    applyLabels()
     note.textContent = noteText
     badge.replaceChildren(state.kind === "on-list" || state.kind === "added" ? checkIcon : pinPlusIcon)
-    tip.textContent = tipText
     root.setAttribute("data-state", state.kind)
     live.textContent = announcement
   }
