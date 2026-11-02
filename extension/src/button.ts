@@ -24,19 +24,52 @@
 // redesign ever hides the button behind page content, raise HOST_Z_INDEX and accept that it'll
 // float over modals too.
 //
-// States. Expanded (default): brand badge, the travel-ink wordmark, "Add @handle", and a
-// minimize button. Minimized (for the rest of the page session, i.e. until reload): the badge
-// alone. The badge is still the link, with a tooltip on hover and keyboard focus.
+// Sizes. Expanded (default): brand badge, the travel-ink wordmark, the action ("Add @handle"…),
+// and a minimize button. Minimized (until the page reloads, or the badge is clicked): the badge
+// alone, with a tooltip on hover and keyboard focus. Clicking it expands the button again rather
+// than acting, so a minimized button never adds anything.
+//
+// States (ButtonState). "add", "failed" and "sign-in" are a <button> that adds in place (the
+// content script passes the click to the service worker; the click is the user's confirmation),
+// and "adding" is that button while the request runs. Signed out, the service worker opens
+// travel-ink to sign in and adds the artist once the user has. "added", "on-list" and "add-link"
+// are links that open travel-ink in a new tab: the artist's page, or v0's Add page. "added" can
+// carry a warning from travel-ink (e.g. the bio isn't public), shown under the action. A visually
+// hidden live region announces the add's progress to screen readers.
+
+export type ButtonState =
+  /** Not on the user's list (or not checked yet): clicking adds the artist in place. */
+  | { kind: "add" }
+  /** The add request is running. */
+  | { kind: "adding" }
+  /** Just added (or it turned out to be on the list already): a link to the artist's page. */
+  | { kind: "added"; href: string; existing: boolean; warning: string | null }
+  /** On the user's list: a link to the artist's travel-ink page. */
+  | { kind: "on-list"; href: string }
+  /**
+   * Signed out of travel-ink: clicking adds, which opens travel-ink to sign in and adds the artist
+   * once the user has. `opened` once that tab is open.
+   */
+  | { kind: "sign-in"; opened: boolean }
+  /** The service worker can't be reached (e.g. the extension was updated): v0's Add page link. */
+  | { kind: "add-link"; href: string }
+  /** The add failed with `message`; clicking tries again. */
+  | { kind: "failed"; message: string }
 
 export interface AddButton {
   /**
-   * Show (or update) the button for this handle. `href` is the travel-ink Add page URL to open.
-   * Cheap to call repeatedly: unchanged values aren't rewritten. Returns true when it put the
-   * button on the page (it was hidden, or something removed it), false when it was already there.
+   * Show (or update) the button for this handle, in `state`. Cheap to call repeatedly: unchanged
+   * values aren't rewritten. Returns true when it put the button on the page (it was hidden, or
+   * something removed it), false when it was already there.
    */
-  show(handle: string, href: string): boolean
+  show(handle: string, state: ButtonState): boolean
   /** Hide the button (non-profile pages). */
   hide(): void
+}
+
+export interface AddButtonOptions {
+  /** A real click on "add", "failed" or "sign-in": add `handle` (without the @). */
+  onAdd(handle: string): void
 }
 
 const HOST_TAG = "travelink-add-button"
@@ -121,6 +154,21 @@ const STYLES = `
   transition: background-color 150ms;
 }
 
+/* The same look when .add is a <button> (states that add in place) */
+button.add {
+  margin: 0;
+  padding-block: 0;
+  padding-inline-start: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+}
+
+.root[data-state="adding"] .add {
+  cursor: progress;
+}
+
 .add:hover {
   background: oklch(1 0 0 / 6%);
 }
@@ -196,6 +244,28 @@ const STYLES = `
   white-space: nowrap;
 }
 
+/* A warning from travel-ink after adding, e.g. the bio isn't public. Raw amber, like the app's
+   warnings (amber-300). */
+.note {
+  display: -webkit-box;
+  max-width: 17em;
+  overflow: hidden;
+  color: oklch(87.9% 0.169 91.605);
+  font-size: 0.75em;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.note:empty {
+  display: none;
+}
+
+/* Not a warning: where to finish signing in */
+.root[data-state="sign-in"] .note {
+  color: var(--muted-foreground);
+}
+
 .divider {
   flex: none;
   width: 1px;
@@ -268,6 +338,14 @@ const STYLES = `
   transition: opacity 120ms, visibility 120ms;
 }
 
+/* A warning can be long: let it wrap rather than cut it off */
+.root[data-state="added"] .tip,
+.root[data-state="sign-in"] .tip {
+  width: max-content;
+  max-width: min(20em, calc(100vw - 40px));
+  white-space: normal;
+}
+
 .root[data-minimized] .add:is(:hover, :focus-visible) ~ .tip {
   opacity: 1;
   visibility: visible;
@@ -290,6 +368,21 @@ const STYLES = `
   }
 }
 
+/* The add failed: an error tint on the action, so it doesn't read as "Add" again */
+.root[data-state="failed"] .action {
+  color: oklch(0.808 0.114 19.571);
+}
+
+/* Screen readers only: announces adding, added and failures */
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Movement only for people who haven't asked for less of it */
 @media (prefers-reduced-motion: no-preference) {
   .root {
@@ -303,6 +396,16 @@ const STYLES = `
   .add:active .badge {
     transform: scale(0.94);
   }
+
+  .root[data-state="adding"] .badge {
+    animation: pulse 1s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.55;
+  }
 }
 
 @keyframes rise {
@@ -314,24 +417,41 @@ const STYLES = `
 `
 
 /** Called once by the content script. */
-export function createAddButton(): AddButton {
+export function createAddButton(options: AddButtonOptions): AddButton {
   const host = document.createElement(HOST_TAG)
   // Closed: Instagram's scripts can't reach in through host.shadowRoot.
   const shadow = host.attachShadow({ mode: "closed" })
   adoptStyles(shadow, STYLES)
 
-  const handleText = h("span", { translate: "no" })
-  const link = h(
-    "a",
-    { class: "add", target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer" },
-    h("span", { class: "badge" }, icon("16 17 96 96", { d: PIN_PLUS_PATH, fill: "currentColor", "fill-rule": "evenodd" })),
+  const pinPlusIcon = icon("16 17 96 96", { d: PIN_PLUS_PATH, fill: "currentColor", "fill-rule": "evenodd" })
+  const checkIcon = icon("0 0 24 24", {
+    d: "M5 12.5l4.5 4.5L19 7.5",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2.5",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+  })
+  const badge = h("span", { class: "badge" }, pinPlusIcon)
+  const actionText = h("span", { class: "action", translate: "no" })
+  const note = h("span", { class: "note" })
+  const content = [
+    badge,
     h(
       "span",
       { class: "text", dir: "ltr" },
       h("span", { class: "wordmark", translate: "no" }, "travel-", h("span", { class: "ink" }, "ink")),
-      h("span", { class: "action" }, "Add ", handleText),
+      actionText,
+      note,
     ),
-  )
+  ]
+  // Two controls share the badge and text: a link for states that open travel-ink, a button for
+  // states that act in place. Only one is in the DOM at a time.
+  const link = h("a", { class: "add", target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer" })
+  const action = h("button", { class: "add", type: "button" })
+  link.append(...content)
+  let control: HTMLAnchorElement | HTMLButtonElement = link
+
   const minimize = h(
     "button",
     // The title is both the tooltip and the accessible name, so screen readers hear it once.
@@ -345,6 +465,7 @@ export function createAddButton(): AddButton {
     }),
   )
   const tip = h("span", { class: "tip", "aria-hidden": "true" })
+  const live = h("span", { class: "live", role: "status" })
   const root = h(
     "div",
     // A landmark, so screen reader users can jump straight to it from anywhere on the page.
@@ -353,29 +474,160 @@ export function createAddButton(): AddButton {
     h("span", { class: "divider", "aria-hidden": "true" }),
     minimize,
     tip,
+    live,
   )
   shadow.append(root)
 
-  minimize.addEventListener("click", () => {
-    // Stays minimized across profiles until the page reloads.
-    root.setAttribute("data-minimized", "")
-    // The button is about to disappear; don't drop keyboard focus on <body>.
-    link.focus()
+  let shownHandle: string | null = null
+  let shownState: ButtonState | null = null
+
+  let minimized = false
+  // The control's name and tooltip for the current state (minimizing changes the name).
+  let controlLabel = ""
+  let tipLabel = ""
+
+  function applyLabels(): void {
+    if (minimized) {
+      control.setAttribute("aria-label", `Expand travel-ink. ${tipLabel}`)
+      control.setAttribute("aria-expanded", "false")
+    } else {
+      control.setAttribute("aria-label", controlLabel)
+      control.removeAttribute("aria-expanded")
+    }
+    tip.textContent = minimized ? `${tipLabel.replace(/[.…]+$/, "")}. Click to expand` : tipLabel
+  }
+
+  function setMinimized(next: boolean): void {
+    minimized = next
+    root.toggleAttribute("data-minimized", next)
+    applyLabels()
+    // The minimize button disappears (or the control changes role): keep keyboard focus on the
+    // badge rather than dropping it on <body>.
+    control.focus()
+  }
+
+  // Stays minimized across profiles until the page reloads.
+  minimize.addEventListener("click", () => setMinimized(true))
+
+  // Minimized, a click on the badge expands the button. Capture phase, so it never reaches the
+  // control: links don't open and nothing is added.
+  root.addEventListener(
+    "click",
+    (event) => {
+      if (!minimized || !(event.target instanceof Node) || !control.contains(event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      setMinimized(false)
+    },
+    true,
+  )
+
+  action.addEventListener("click", (event) => {
+    // Only the user's own clicks, not ones a page script dispatches.
+    if (!event.isTrusted || !shownHandle) return
+    const kind = shownState?.kind
+    if (kind === "add" || kind === "failed" || kind === "sign-in") options.onAdd(shownHandle)
   })
 
-  let shownHandle: string | null = null
+  function switchControl(next: HTMLAnchorElement | HTMLButtonElement): void {
+    if (control === next) return
+    const hadFocus = shadow.activeElement === control
+    next.append(...content)
+    control.replaceWith(next)
+    control = next
+    if (hadFocus) next.focus()
+    applyLabels()
+  }
+
+  function render(name: string, state: ButtonState): void {
+    const at = `@${name}`
+    let label: string
+    let tipText: string
+    let announcement = ""
+    let noteText = ""
+    switch (state.kind) {
+      case "add":
+        actionText.textContent = `Add ${at}`
+        // Starts with the visible label ("Add @handle"), so speech input matches it too.
+        label = `Add ${at} to travel-ink`
+        tipText = label
+        break
+      case "adding":
+        actionText.textContent = `Adding ${at}…`
+        label = `Adding ${at} to travel-ink`
+        tipText = `${label}…`
+        announcement = tipText
+        break
+      case "added": {
+        const done = state.existing ? "Already on your list" : "Added to your list"
+        actionText.textContent = done
+        noteText = state.warning ?? ""
+        label = `${at}: ${done}.${noteText ? ` ${noteText}` : ""} Open on travel-ink (opens in a new tab)`
+        tipText = noteText ? `${done}. ${noteText}` : `${at}: ${done}`
+        announcement = state.existing ? `${at} is already on your travel-ink list` : `Added ${at} to travel-ink`
+        if (noteText) announcement += `. ${noteText}`
+        break
+      }
+      case "on-list":
+        // The badge shows the check mark.
+        actionText.textContent = "On your list"
+        label = `${at} is on your travel-ink list. Open on travel-ink (opens in a new tab)`
+        tipText = `${at} is on your list`
+        break
+      case "sign-in":
+        actionText.textContent = "Sign in to travel-ink"
+        label = `Sign in to travel-ink to add ${at} (opens in a new tab)`
+        tipText = `Sign in to travel-ink to add ${at}`
+        if (state.opened) {
+          noteText = `${at} is added once you've signed in on the travel-ink tab.`
+          label = `${label}. ${noteText}`
+          tipText = noteText
+          announcement = `Sign in on the travel-ink tab to add ${at}`
+        }
+        break
+      case "add-link":
+        actionText.textContent = `Add ${at}`
+        label = `Add ${at} to travel-ink (opens in a new tab)`
+        tipText = `Add ${at} to travel-ink`
+        break
+      case "failed":
+        actionText.textContent = "Couldn't add. Try again"
+        label = `Couldn't add ${at}: ${state.message} Try again`
+        tipText = state.message
+        announcement = `Couldn't add ${at}: ${state.message}`
+        break
+    }
+
+    const isLink = "href" in state
+    switchControl(isLink ? link : action)
+    if (isLink) link.setAttribute("href", state.href)
+    if (state.kind === "adding") {
+      // aria-disabled rather than disabled, so keyboard focus stays on the button.
+      action.setAttribute("aria-disabled", "true")
+      action.setAttribute("aria-busy", "true")
+    } else {
+      action.removeAttribute("aria-disabled")
+      action.removeAttribute("aria-busy")
+    }
+    if (state.kind === "failed") action.setAttribute("title", state.message)
+    else action.removeAttribute("title")
+    controlLabel = label
+    tipLabel = tipText
+    applyLabels()
+    note.textContent = noteText
+    badge.replaceChildren(state.kind === "on-list" || state.kind === "added" ? checkIcon : pinPlusIcon)
+    root.setAttribute("data-state", state.kind)
+    live.textContent = announcement
+  }
 
   return {
-    show(handle, href) {
+    show(handle, state) {
       const name = handle.replace(/^@/, "")
-      if (name !== shownHandle) {
+      if (name !== shownHandle || !sameState(state, shownState)) {
+        render(name, state)
         shownHandle = name
-        handleText.textContent = `@${name}`
-        tip.textContent = `Add @${name} to travel-ink`
-        // Starts with the visible label ("Add @handle"), so speech input matches it too.
-        link.setAttribute("aria-label", `Add @${name} to travel-ink (opens in a new tab)`)
+        shownState = state
       }
-      if (link.getAttribute("href") !== href) link.setAttribute("href", href)
       // React re-renders, or anything else, may have taken the host out of the document.
       if (host.isConnected) return false
       const parent = document.body ?? document.documentElement
@@ -386,6 +638,11 @@ export function createAddButton(): AddButton {
       host.remove()
     },
   }
+}
+
+function sameState(a: ButtonState, b: ButtonState | null): boolean {
+  if (!b || a.kind !== b.kind) return false
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 function adoptStyles(shadow: ShadowRoot, css: string): void {

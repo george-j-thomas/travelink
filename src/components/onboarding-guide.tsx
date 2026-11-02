@@ -71,7 +71,7 @@ export function OnboardingGuide({ defaultOpen = false }: OnboardingGuideProps) {
             {/* ── Data Export ── */}
             <TabsContent value="data-export">
               <p className="mb-3 text-xs font-medium text-brand-300/80">
-                Recommended — no password sharing
+                No password or cookie sharing
               </p>
               <ol className="grid gap-2 text-sm text-muted-foreground">
                 <Step number={1}>
