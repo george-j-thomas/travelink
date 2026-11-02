@@ -31,6 +31,7 @@ Tattoo artist location tracker. Users import their Instagram following list, the
   - `admin.ts` — Admins are the emails in `ADMIN_EMAILS` (comma-separated env var), not a DB role
   - `access.ts` — Invite-only registration (`registerUser` consumes a single-use invite atomically), invite create/revoke, user disable
   - `bio-refresh.ts` — `REFRESH_CONFIRM_WINDOW_MS` and `isRecentlyFetched`. Imported by client pages too, so it must stay free of server-only imports
+  - `extension.ts` — `EXTENSION_STORE_URL`: the browser extension's Chrome Web Store page, `null` until it's published. Client-safe. `ExtensionCard` (`src/components/extension-card.tsx`) presents the extension as the recommended way to add artists on the Artists page: first in the empty state (above the import) and as a banner above the list that each user can dismiss (per browser, localStorage). While the URL is `null` it says "Coming soon" and the import stays the empty state's main button
   - `usage.ts` — Daily budgets for metered external calls (`reserveUsage(kind, userId)` atomically increments global + per-user counters, throws `BudgetExceededError`)
   - `db.ts` — Prisma client singleton
 

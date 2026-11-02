@@ -121,6 +121,7 @@ Zips in `extension/` are gitignored. Bump `version` in `manifest.json` before ea
 
 Before the first upload:
 
+- Once the listing is live, set `EXTENSION_STORE_URL` in `src/lib/extension.ts` to its URL. The Artists page's extension card then links to it (it says "Coming soon" until then), and the empty state makes the extension the main way to add artists.
 - The store needs a privacy policy: the extension sends handles to travel-ink with the user's login cookie. travel-ink doesn't have a privacy policy page yet.
 - The store warns that the extension can read and change data on www.instagram.com and on the travel-ink host. The listing should say why: the button on profiles, and adding to your travel-ink list.
 - A host permission added in an update disables existing installs until users accept it. Nothing is on the store yet, so the first published version can include it without disabling anyone's install.

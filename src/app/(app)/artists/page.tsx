@@ -45,6 +45,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { OnboardingGuide } from "@/components/onboarding-guide"
+import { ExtensionCard } from "@/components/extension-card"
+import { EXTENSION_STORE_URL } from "@/lib/extension"
 import {
   formatResumeTime,
   useBioQueue,
@@ -183,21 +185,37 @@ function SkeletonCard() {
    ═══════════════════════════════════════════════════════════════════ */
 
 function EmptyState() {
+  // Until the extension is on the store, importing stays the main button.
+  const extensionLive = EXTENSION_STORE_URL !== null
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
+    <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-brand-500/10 ring-1 ring-brand-500/20">
         <UserRound className="size-10 text-brand-400/80" strokeWidth={1.5} />
       </div>
 
       <h2 className="text-lg font-medium text-foreground">No artists yet</h2>
-      <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted-foreground">
-        Import your Instagram following list to automatically add the tattoo
-        artists you follow.
+      <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+        Add the tattoo artists you follow on Instagram to see where they&apos;re
+        working.
       </p>
 
-      <Link href="/artists/import" className="mt-6">
+      <div className="mt-8 w-full max-w-3xl">
+        <ExtensionCard />
+      </div>
+
+      <p className="mt-10 max-w-sm text-sm leading-relaxed text-muted-foreground">
+        Or import your Instagram following list to add everyone you follow at
+        once.
+      </p>
+
+      <Link href="/artists/import" className="mt-4">
         <Button
-          className="bg-brand-600 font-medium text-white hover:bg-brand-700"
+          variant={extensionLive ? "outline" : "default"}
+          className={
+            extensionLive
+              ? "font-medium"
+              : "bg-brand-600 font-medium text-white hover:bg-brand-700"
+          }
           size="lg"
         >
           <Upload className="size-4" />
@@ -681,6 +699,8 @@ export default function ArtistsPage() {
       )}
 
       {!loading && !error && <QueueBanner queue={queue} pending={pendingCount} />}
+
+      {!loading && !error && artists.length > 0 && <ExtensionCard dismissible />}
 
       <Dialog
         open={refreshOpen}
