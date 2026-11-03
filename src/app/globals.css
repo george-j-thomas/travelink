@@ -222,3 +222,20 @@
 .artist-popup .mapboxgl-popup-tip {
   display: none;
 }
+
+/* ── Mapbox GL controls (dark theme) ──────────────────────────── */
+
+.mapboxgl-ctrl-group:not(:empty) {
+  background: color-mix(in oklab, var(--background) 80%, transparent);
+  backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
+}
+
+.mapboxgl-ctrl-group button:not(:disabled):hover {
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+/* Mapbox's icons are dark: turn them light, keeping the compass's red north */
+.mapboxgl-ctrl-group .mapboxgl-ctrl-icon {
+  filter: invert(1) hue-rotate(180deg);
+}

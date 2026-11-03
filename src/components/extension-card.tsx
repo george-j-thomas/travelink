@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
+import Link from "next/link"
 import { ExternalLink, Puzzle, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -129,7 +130,10 @@ export function ExtensionCard({ dismissible = false }: ExtensionCardProps) {
 
           <p className="text-xs text-muted-foreground/80">
             It only reads the address of the profile you&apos;re on: not your Instagram login, your
-            messages or anything else on the page.
+            messages or anything else on the page.{" "}
+            <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground">
+              Privacy policy
+            </Link>
           </p>
 
           <div className={dismissible ? "pt-1 lg:hidden" : "pt-1"}>{storeLink}</div>

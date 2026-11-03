@@ -202,7 +202,12 @@ export default async function Home({
       <footer className="border-t border-border/50">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-6 sm:px-6">
           <Wordmark />
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} travel-ink</p>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <Link href="/privacy" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
+            <p>© {new Date().getFullYear()} travel-ink</p>
+          </div>
         </div>
       </footer>
     </div>

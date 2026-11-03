@@ -99,6 +99,9 @@ const STEPS = [
 
 const STEP_ADVANCE_MS = 1200
 const DONE_PAUSE_MS = 500
+// The browser extension gives up on an add after 60s; then it shows the form. In case it never
+// does (e.g. it was removed, or someone else's link had &adding=1), the page does so itself.
+const EXTENSION_ADD_TIMEOUT_MS = 75_000
 
 // travel-ink search is a cheap database query
 const DIRECTORY_DEBOUNCE_MS = 200
@@ -268,6 +271,8 @@ export default function AddArtistPage() {
   const [active, setActive] = useState(-1)
   // The search term for the handle the page was opened with (?handle=)
   const [prefillQuery, setPrefillQuery] = useState<string | null>(null)
+  // The handle the browser extension is adding, after the user signed in (?handle=…&adding=1)
+  const [extensionAdd, setExtensionAdd] = useState<string | null>(null)
 
   // -- travel-ink search: the user's own artists, then ones other users added
   const directory = useDebouncedSearch<DirectoryArtist[]>(async (query, signal) => {
@@ -364,8 +369,10 @@ export default function AddArtistPage() {
     const url = new URL(window.location.href)
     const value = url.searchParams.get("handle")
     if (value === null) return
+    const adding = url.searchParams.get("adding") === "1"
     // Only once: reloading or coming back to the page shouldn't fill it in again
     url.searchParams.delete("handle")
+    url.searchParams.delete("adding")
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
 
     const parsed = parseHandleInput(value)
@@ -375,10 +382,35 @@ export default function AddArtistPage() {
       return
     }
     setInput(parsed.handle)
+    // The extension is adding the artist itself and replaces this page when it's done: show the
+    // progress until then
+    if (adding) {
+      setView("loading")
+      setStep(0)
+      setExtensionAdd(parsed.handle)
+      return
+    }
     setOpen(true)
     setPrefillQuery(searchTermFor(parsed.handle))
     inputRef.current?.focus()
   }, [])
+
+  // Timers in their own effect, for the same reason as the search below
+  useEffect(() => {
+    if (!extensionAdd) return
+    const steps = setInterval(() => setStep((prev) => Math.min(prev + 1, STEPS.length - 1)), STEP_ADVANCE_MS)
+    const giveUp = setTimeout(() => {
+      setView("idle")
+      setError("The browser extension didn't finish adding this artist. You can add them here.")
+      setOpen(true)
+      setPrefillQuery(searchTermFor(extensionAdd))
+      setExtensionAdd(null)
+    }, EXTENSION_ADD_TIMEOUT_MS)
+    return () => {
+      clearInterval(steps)
+      clearTimeout(giveUp)
+    }
+  }, [extensionAdd])
 
   // Searched in its own effect: in development, Strict Mode remounts the page once, which
   // cancels searches started on mount. Instagram isn't searched: a new tab has no cookie
@@ -726,7 +758,9 @@ export default function AddArtistPage() {
               Adding @{input}
             </CardTitle>
             <CardDescription>
-              This usually takes a few seconds
+              {extensionAdd
+                ? "From the browser extension. This usually takes a few seconds"
+                : "This usually takes a few seconds"}
             </CardDescription>
           </CardHeader>
 

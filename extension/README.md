@@ -16,8 +16,8 @@ v1 adds a floating **Add @handle** button to Instagram profile pages in desktop 
 - **Signing in:** the service worker's requests use `credentials: "include"`. With a host permission for travel-ink, Chrome treats them as same-site, so they carry the travel-ink login cookie (NextAuth, `SameSite=Lax`) and the API's usual `requireSession()` works unchanged. Where third-party cookies are blocked (Brave by default), the cookie isn't sent and the button always says **Sign in to travel-ink**. A "Connect extension" token for those browsers isn't built yet.
 - **On your list:** `GET /api/artists/handles` returns the handles on your list. The service worker fetches the whole list and matches profiles itself, so travel-ink never learns which Instagram profiles you open. It keeps the list for 30 s, adds to it after each add, and drops it on a 401. Chrome stops idle service workers, and the list goes with it.
 - **Adding:** `POST /api/artists` with `{ handle }` only, since the extension doesn't read the page. Like the Add page, it fetches the bio straight away (Business Discovery, Claude, geocoding, photo), so an add can take several seconds; the service worker waits up to 60 s. If Instagram is throttling, the artist stays pending and the bio arrives the next time you open travel-ink, since the bio queue only runs in a travel-ink tab.
-- **Signed out (401):** the button becomes **Sign in to travel-ink**. Clicking it (or **Add**, if you turn out to be signed out) is still an add: the service worker opens the Add page (`/artists/add?handle=…`) in a new tab next to Instagram, which takes you through travel-ink's login page first, and the button says the artist is added once you've signed in there.
-- **Adding after signing in:** the service worker remembers that tab and the handle in `chrome.storage.session` (Chrome stops an idle service worker within 30 s, often before you've signed in; session storage is cleared when the browser closes). When the tab reaches a page only signed-in users can open (`/artists…`, `/map…`, `/admin…`, the pages `src/middleware.ts` protects), it takes the handle off the list (so it's added once) and adds it. The tab then goes to the artist's page, unless you've already moved on from the page you landed on, and the Instagram tab you clicked in shows the result (`chrome.tabs.sendMessage`: `add-started`, then `add-finished`). It only ever acts on tabs it opened itself, never on a travel-ink link opened any other way, and forgets a tab when it's closed or after 30 minutes. If the add still can't happen (e.g. Brave doesn't send the cookie), the Add page stays open with the handle filled in.
+- **Signed out (401):** the button becomes **Sign in to travel-ink**. Clicking it (or **Add**, if you turn out to be signed out) is still an add: the service worker opens the Add page (`/artists/add?handle=…&adding=1`) in a new tab next to Instagram, which takes you through travel-ink's login page first, and the button says the artist is added once you've signed in there. `adding=1` makes the Add page show its "Adding @handle" progress instead of the form while the service worker adds the artist.
+- **Adding after signing in:** the service worker remembers that tab and the handle in `chrome.storage.session` (Chrome stops an idle service worker within 30 s, often before you've signed in; session storage is cleared when the browser closes). When the tab reaches a page only signed-in users can open (`/artists…`, `/map…`, `/admin…`, the pages `src/middleware.ts` protects), it takes the handle off the list (so it's added once) and adds it. The tab then goes to the artist's page, unless you've already moved on from the page you landed on, and the Instagram tab you clicked in shows the result (`chrome.tabs.sendMessage`: `add-started`, then `add-finished`). It only ever acts on tabs it opened itself, never on a travel-ink link opened any other way, and forgets a tab when it's closed or after 30 minutes. If the add still can't happen (e.g. Brave doesn't send the cookie, or travel-ink fails), the tab goes to the Add page's form instead (`?handle=` without `adding`), with the handle filled in. If the service worker never gets that far (say the extension was removed), the Add page gives up waiting after 75 s and shows the form itself.
 - **Errors:** if travel-ink can't be reached or fails, the button says **Couldn't add. Try again** and keeps the reason in its tooltip. A 400's message (e.g. an invalid handle) is shown as is. If the service worker can't be reached at all (the extension was updated under an open tab), the button falls back to v0's link to the Add page.
 
 ## The button
@@ -45,7 +45,7 @@ v1 adds a floating **Add @handle** button to Instagram profile pages in desktop 
 
 ## On travel-ink
 
-When the extension opens the Add page (signed out, or v0's link when there's no service worker), the Add page reads `?handle=` once and removes it from the address bar. It fills in and focuses the field and shows the usual suggestions. Only travel-ink's own directory is searched, because the new tab has no Instagram cookie. The page itself never adds anything until you click a suggestion or press Enter; after a signed-out click, the service worker does the add (above).
+When the extension opens the Add page (signed out, or v0's link when there's no service worker), the Add page reads `?handle=` (and `adding`) once and removes them from the address bar. With `adding=1` it shows the progress until the service worker replaces the page (above); otherwise it shows the form. It fills in and focuses the field and shows the usual suggestions. Only travel-ink's own directory is searched, because the new tab has no Instagram cookie. The page itself never adds anything until you click a suggestion or press Enter; after a signed-out click, the service worker does the add (above).
 
 If you're signed out, you sign in first and come back to the Add page. One gap: if travel-ink refuses an Instagram sign-in, the login page loses the way back, so signing in with a password after that goes to the map.
 
@@ -109,10 +109,10 @@ The service worker has its own console: click **service worker** on the extensio
 
 ## Chrome Web Store zip
 
-The store wants a zip with `manifest.json` at its root, so zip the contents of `dist/`, not the folder. Build with travel-ink's production origin first (the same origin as the app's `NEXTAUTH_URL`):
+The store wants a zip with `manifest.json` at its root, so zip the contents of `dist/`, not the folder. Build with travel-ink's production origin first (the same origin as the app's `NEXTAUTH_URL`): `https://www.travel-ink.net`, with `www`. The bare domain redirects to `www`, and the login cookie only exists there, so a build for the bare domain is always signed out.
 
 ```sh
-TRAVELINK_URL=https://<travel-ink domain> npm run ext:build
+TRAVELINK_URL=https://www.travel-ink.net npm run ext:build
 rm -f extension/travelink-extension.zip
 (cd extension/dist && zip -r -X ../travelink-extension.zip .)
 ```
@@ -122,8 +122,7 @@ Zips in `extension/` are gitignored. Bump `version` in `manifest.json` before ea
 Before the first upload:
 
 - Once the listing is live, set `EXTENSION_STORE_URL` in `src/lib/extension.ts` to its URL. The Artists page's extension card then links to it (it says "Coming soon" until then), and the empty state makes the extension the main way to add artists.
-- The store needs a privacy policy: the extension sends handles to travel-ink with the user's login cookie. travel-ink doesn't have a privacy policy page yet.
-- The store warns that the extension can read and change data on www.instagram.com and on the travel-ink host. The listing should say why: the button on profiles, and adding to your travel-ink list.
+- The listing's text, permission justifications, privacy answers and images are in `store/` (`store/listing.md`). The privacy policy is travel-ink's `/privacy` page (`src/app/privacy/page.tsx`); keep it in step with what the extension does.
 - A host permission added in an update disables existing installs until users accept it. Nothing is on the store yet, so the first published version can include it without disabling anyone's install.
 
 ## Extending
